@@ -154,7 +154,10 @@ CREATE TABLE IF NOT EXISTS vendor_failure_rates_mv_state
     error_code     LowCardinality(String),
     month          Date,
     total_count    AggregateFunction(count),
-    fail_count     AggregateFunction(countIf),
+    -- countIf takes the condition as an argument, so its state type must
+    -- declare that argument's type. Bare AggregateFunction(countIf) fails with
+    -- "Incorrect number of arguments for aggregate function with If suffix".
+    fail_count     AggregateFunction(countIf, UInt8),
     avg_cost       AggregateFunction(avg, Float32),
     total_cost     AggregateFunction(sum, Float32)
 )
