@@ -29,7 +29,9 @@ RUN apt-get update && apt-get install -y git --no-install-recommends \
 RUN mvn clean package -DskipTests -q
 
 # ── Stage 2: Minimal runtime image ───────────────────────────────────────────
-FROM eclipse-temurin:17-jre-alpine
+# NOTE: the -jre-alpine tags are published amd64-only. Use the Ubuntu-based
+# -jre tag so this builds natively on Apple Silicon (arm64) as well as x86.
+FROM eclipse-temurin:17-jre
 
 LABEL org.opencontainers.image.title="photon-imf-validator"
 LABEL org.opencontainers.image.description="Netflix Photon IMF validator — offline oracle for error taxonomy harvest"

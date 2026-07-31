@@ -7,7 +7,7 @@
 #   "ClickHouse used at runtime via the official mcp-clickhouse MCP server"
 #
 # Run:
-#   uv run python mcp/gate2_smoke_test.py
+#   uv run python mcp_config/gate2_smoke_test.py
 #
 # Expected output:
 #   [GATE 2] MCP tools discovered: ['query', 'list_databases', ...]

@@ -146,7 +146,7 @@ uv sync
 ### Run Gate 2 smoke test (ClickHouse MCP connectivity)
 
 ```bash
-uv run python mcp/gate2_smoke_test.py
+uv run python mcp_config/gate2_smoke_test.py
 ```
 
 ### Run full agent loop (local)
@@ -186,7 +186,7 @@ preflight-qc/
 │   ├── schema.sql                 # ClickHouse DDL (qc_inspections)
 │   ├── schema_tracking.sql        # ClickHouse DDL (redelivery_tracking)
 │   └── sample_queries.sql         # Top-10 analytical queries
-├── mcp/
+├── mcp_config/
 │   ├── clickhouse_config.yaml     # MCP server config
 │   └── gate2_smoke_test.py        # Gate 2 proof artifact
 ├── infra/
