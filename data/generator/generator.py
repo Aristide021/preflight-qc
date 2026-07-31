@@ -256,6 +256,15 @@ class TitleFactory:
     """
 
     def __init__(self, n_titles: int = 500, n_vendors: int = 20) -> None:
+        # VENDORS is a fixed roster. Slicing past its length used to silently
+        # yield fewer vendors than requested — `--vendors 45` produced 20 with
+        # no indication anything had been ignored.
+        if n_vendors > len(VENDORS):
+            print(
+                f"  NOTE: requested {n_vendors} vendors but the roster defines "
+                f"{len(VENDORS)}; using all {len(VENDORS)}."
+            )
+            n_vendors = len(VENDORS)
         self.titles: list[dict] = []
         vendor_ids = [v["id"] for v in VENDORS[:n_vendors]]
 
@@ -295,6 +304,7 @@ class TitleFactory:
 def generate_inspection_chain(
     title: dict,
     start_date: datetime,
+    end_date: datetime | None = None,
 ) -> list[dict[str, Any]]:
     """
     Generate a complete inspection chain for a single title delivery:
@@ -323,6 +333,13 @@ def generate_inspection_chain(
         inspect_offset = timedelta(hours=int(rng.integers(1, 48)))
         submitted_at = current_date + submit_offset
         inspected_at = submitted_at + inspect_offset
+
+        # Stop the chain at the corpus horizon instead of inventing inspections
+        # in the future. Chains may now start anywhere in the range, so a chain
+        # beginning last week is simply still in flight — which is what the
+        # recent end of a real delivery history looks like.
+        if end_date is not None and inspected_at > end_date:
+            break
 
         # Determine pass/fail — fail rate decreases with each attempt (learning)
         attempt_fail_rate = fail_rate * (0.7 ** attempt)
@@ -484,10 +501,15 @@ def generate_corpus(
         while rows_written < target_rows:
             # Pick a random title and a random start date within the range
             title = factory.titles[rng.integers(len(factory.titles))]
-            offset_days = int(rng.integers(0, date_range_days - 30))
+            # Chains start anywhere in the range, including the last few days.
+            # The previous `date_range_days - 30` guard band left the most
+            # recent month almost empty, so "today"-scoped dashboard queries
+            # (sample_queries.sql Q10) matched zero rows and the product looked
+            # dead. The chain itself is now truncated at end_date instead.
+            offset_days = int(rng.integers(0, date_range_days))
             chain_start = start_date + timedelta(days=offset_days)
 
-            chain = generate_inspection_chain(title, chain_start)
+            chain = generate_inspection_chain(title, chain_start, end_date=end_date)
             buffer.extend(chain)
 
             if len(buffer) >= chunk_size:
