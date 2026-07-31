@@ -1,0 +1,10 @@
+# Generator-only dependencies
+# These are NOT runtime deps — they never appear in the deployed agent path.
+# Install with: uv sync --extra generator
+# (declared as [project.optional-dependencies].generator in pyproject.toml)
+
+faker>=25.0.0       # Realistic names / strings for synthetic titles
+numpy>=1.26.0       # Fast random sampling with numpy.random.Generator
+pandas>=2.2.0       # DataFrame for Parquet writing
+pyarrow>=16.0.0     # Parquet I/O with typed schema
+tqdm>=4.66.0        # Progress bar for long generation runs

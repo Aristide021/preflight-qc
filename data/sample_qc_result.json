@@ -1,0 +1,52 @@
+{
+  "inspection_id": "550e8400-e29b-41d4-a716-446655440000",
+  "title_id": "NFLX_100042",
+  "title_name": "The Harbor Light",
+  "vendor_id": "VND_ROUNDABOUT",
+  "platform_spec": "netflix-imf-2.1",
+  "spec_version": "netflix-imf-2.1-20240101",
+  "package_type": "IMF",
+  "codec": "JPEG2000",
+  "hdr_format": "DolbyVision",
+  "audio_config": "5.1",
+  "redelivery_attempt": 0,
+  "submitted_at": "2026-07-30T14:00:00Z",
+  "errors": [
+    {
+      "error_code": "IMF_AUDIO_LOUDNESS_ERROR",
+      "error_category": "audio",
+      "error_message": "Integrated loudness -31.2 LKFS exceeds maximum -24.0 LKFS. True peak +0.4 dBTP above maximum -2.0 dBTP.",
+      "error_context": {
+        "track": "AUDIO_TRACK_01",
+        "measured_loudness": -31.2,
+        "spec_max": -24.0,
+        "measured_true_peak": 0.4,
+        "spec_max_true_peak": -2.0
+      },
+      "stage": "auto-qc"
+    },
+    {
+      "error_code": "IMF_CPL_ERROR",
+      "error_category": "structural",
+      "error_message": "Missing required ApplicationIdentification element in CPL. IMF Application Profile cannot be determined.",
+      "error_context": {
+        "file": "CPL_550e8400.xml",
+        "element": "ApplicationIdentification",
+        "required_by": "SMPTE ST 2067-2"
+      },
+      "stage": "photon"
+    },
+    {
+      "error_code": "IMF_DOLBY_VISION_ERROR",
+      "error_category": "metadata",
+      "error_message": "Dolby Vision RPU track missing from video essence. DolbyVision declared in CPL but no RPU found.",
+      "error_context": {
+        "track": "VIDEO_TRACK_01",
+        "declared_hdr": "DolbyVision",
+        "found_hdr": "SDR"
+      },
+      "stage": "auto-qc"
+    }
+  ],
+  "raw_output": "Photon IMF Validator v1.x\\n[ERROR] IMF_CPL_ERROR: Missing ApplicationIdentification\\n[ERROR] IMF_AUDIO_LOUDNESS_ERROR: -31.2 LKFS (max -24.0)\\n[ERROR] IMF_DOLBY_VISION_ERROR: RPU track not found"
+}

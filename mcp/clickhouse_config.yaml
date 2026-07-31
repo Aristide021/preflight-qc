@@ -1,0 +1,65 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# mcp-clickhouse MCP Server Configuration
+#
+# This file configures the mcp-clickhouse MCP server that all agents use
+# to query ClickHouse Cloud. Credentials are always sourced from environment
+# variables (Secret Manager in prod, .env in local dev).
+#
+# Reference: https://github.com/ClickHouse/mcp-clickhouse
+# ─────────────────────────────────────────────────────────────────────────────
+
+mcp_server:
+  # The official ClickHouse MCP server package
+  command: npx
+  args:
+    - "-y"
+    - "@clickhouse/mcp-clickhouse"
+
+  # Connection environment (sourced from process env / Secret Manager)
+  env:
+    CLICKHOUSE_HOST: "${CLICKHOUSE_HOST}"
+    CLICKHOUSE_PORT: "${CLICKHOUSE_PORT}"
+    CLICKHOUSE_USER: "${CLICKHOUSE_USER}"
+    CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD}"
+    CLICKHOUSE_DATABASE: "${CLICKHOUSE_DATABASE}"
+    CLICKHOUSE_SECURE: "${CLICKHOUSE_SECURE}"
+
+  # Available tools exposed by mcp-clickhouse:
+  #   - query: Execute a SELECT query and return results
+  #   - list_databases: List available databases
+  #   - list_tables: List tables in a database
+  #   - describe_table: Get schema for a table
+  #   - insert: Insert rows into a table (used by Action agent)
+  tools_available:
+    - query
+    - list_databases
+    - list_tables
+    - describe_table
+    - insert
+
+# ── Query safety settings ─────────────────────────────────────────────────────
+query_settings:
+  # Max rows the QC-Analyst agent can return in one query
+  # (prevents runaway scans in the analytical context)
+  max_rows: 10000
+  # Query timeout (seconds)
+  timeout_seconds: 30
+  # Read-only mode for the Spec-Reader and QC-Analyst agents
+  # The Action agent has write access (inserts to redelivery_tracking)
+  read_only_agents:
+    - spec_reader
+    - qc_analyst
+  write_allowed_agents:
+    - action
+    - orchestrator
+
+# ── Local development override ────────────────────────────────────────────────
+# When APP_ENV=local, point at a local ClickHouse instance for schema iteration
+# without burning cloud credits. Comment out when moving to cloud.
+#
+# local_override:
+#   CLICKHOUSE_HOST: localhost
+#   CLICKHOUSE_PORT: "8123"
+#   CLICKHOUSE_SECURE: "false"
+#   CLICKHOUSE_USER: default
+#   CLICKHOUSE_PASSWORD: ""

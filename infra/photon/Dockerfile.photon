@@ -1,0 +1,46 @@
+# Photon IMF Validator — Docker Wrapper
+#
+# Netflix Photon is the open-source IMF (Interoperable Master Format) package
+# validator used in production. We use it as an OFFLINE ORACLE to harvest
+# authentic IMF error codes that ground our synthetic inspection-log corpus.
+#
+# Source: https://github.com/Netflix/photon
+# License: Apache-2.0
+#
+# Usage:
+#   docker build -t photon-validator -f infra/photon/Dockerfile.photon .
+#   docker run --rm -v /path/to/imf:/imf photon-validator /imf/MyPackage
+#
+# Why Docker (not raw JDK): avoids JDK toolchain setup; reproducible
+# across environments; aligns with the build plan's "avoid JDK setup" guidance.
+
+# ── Stage 1: Build Photon from source ────────────────────────────────────────
+FROM maven:3.9-eclipse-temurin-17 AS builder
+
+WORKDIR /build
+
+# Clone at a pinned commit for reproducibility.
+# Update this SHA when pulling a newer Photon release.
+RUN apt-get update && apt-get install -y git --no-install-recommends \
+    && git clone https://github.com/Netflix/photon.git . \
+    && git checkout main
+
+# Build, skip tests (we're using it as a tool, not running its test suite)
+RUN mvn clean package -DskipTests -q
+
+# ── Stage 2: Minimal runtime image ───────────────────────────────────────────
+FROM eclipse-temurin:17-jre-alpine
+
+LABEL org.opencontainers.image.title="photon-imf-validator"
+LABEL org.opencontainers.image.description="Netflix Photon IMF validator — offline oracle for error taxonomy harvest"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+
+WORKDIR /photon
+
+# Copy the built JAR (Photon builds to a fat JAR via Maven shade plugin)
+COPY --from=builder /build/target/photon-*.jar ./photon.jar
+
+# Default entrypoint: pass the IMF package path as CMD
+# e.g. docker run photon-validator /imf/MyPackage
+ENTRYPOINT ["java", "-jar", "/photon/photon.jar"]
+CMD ["--help"]
