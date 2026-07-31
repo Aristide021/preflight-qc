@@ -6,7 +6,7 @@
   "platform_spec": "netflix-imf-2.1",
   "spec_version": "netflix-imf-2.1-20240101",
   "package_type": "IMF",
-  "codec": "JPEG2000",
+  "codec": "ProRes",
   "hdr_format": "DolbyVision",
   "audio_config": "5.1",
   "redelivery_attempt": 0,
