@@ -137,6 +137,30 @@ SEVERITY_BY_CODE: dict[str, str] = {
     e["error_code"]: (e.get("severity") or "blocking") for e in _SAMPLABLE
 }
 
+CATEGORY_BY_CODE: dict[str, str] = {
+    e["error_code"]: (e.get("category") or "structural") for e in _SAMPLABLE
+}
+
+# Codes grouped by severity, so a redelivery can be made to fail on something
+# genuinely blocking rather than on whatever the raw frequency draw returns.
+CODES_BY_SEVERITY: dict[str, list[str]] = {}
+for _code, _severity in SEVERITY_BY_CODE.items():
+    CODES_BY_SEVERITY.setdefault(_severity, []).append(_code)
+
+# ── Redelivery loop shape ────────────────────────────────────────────────────
+# Stated modelling assumptions, not measurements. Photon's harvest tells us
+# which errors occur and how severe they are; it says nothing about how often a
+# rejected package is fixed on the second try. These numbers are set so the
+# corpus shows the 2-3 attempt loops the delivery literature describes.
+MAX_REDELIVERY_ATTEMPTS = 6
+# P(a redelivery fails again) — a package already rejected once is a troubled
+# delivery, not an average one.
+REDELIVERY_FAIL_RATE = 0.45
+# How fast that decays as the vendor works the problem across attempts.
+REDELIVERY_DECAY = 0.65
+# P(a failing redelivery fails on a blocking issue rather than an advisory one).
+REDELIVERY_BLOCKING_BIAS = 0.80
+
 # Verbatim Photon messages, harvested per code. Codes the harvest never
 # exercised have no example text and fall back to their enum label rather than
 # to invented prose.
@@ -268,13 +292,24 @@ class TitleFactory:
         self.titles: list[dict] = []
         vendor_ids = [v["id"] for v in VENDORS[:n_vendors]]
 
+        # Each vendor gets a codec MIX, not a single codec.
+        #
+        # VENDOR_PROFILES[vendor]["codec"] was used directly, making codec a
+        # deterministic function of vendor. Every vendor delivered in exactly
+        # one format, so any vendor x codec cell the analyst queried outside
+        # that pairing was empty — the sample delivery asked for JPEG2000 from
+        # a ProRes-only vendor and got zero history back. Real facilities
+        # specialise but still handle several formats.
+        self.vendor_codec_mix = {
+            vendor_id: self._codec_mix(vendor_id) for vendor_id in vendor_ids
+        }
+
         for i in range(n_titles):
             title_id = f"NFLX_{100000 + i}"
             vendor_id = str(rng.choice(vendor_ids))
             platform = PLATFORMS[rng.integers(len(PLATFORMS))]
-            codec = VENDOR_PROFILES.get(vendor_id, {}).get(
-                "codec", str(rng.choice(CODECS))
-            )
+            codecs, weights = self.vendor_codec_mix[vendor_id]
+            codec = str(rng.choice(codecs, p=weights))
             self.titles.append(
                 {
                     "title_id": title_id,
@@ -292,6 +327,25 @@ class TitleFactory:
                     "fragility": float(rng.beta(2, 5)),
                 }
             )
+
+    @staticmethod
+    def _codec_mix(vendor_id: str) -> tuple[list[str], list[float]]:
+        """
+        A vendor's format mix: their house codec plus the others they also take.
+
+        Skewed heavily toward the primary so vendor specialisation still shows
+        in the data, but every vendor has real volume in three formats so
+        vendor x codec analytics have populated cells.
+        """
+        primary = VENDOR_PROFILES.get(vendor_id, {}).get("codec") or CODECS[0]
+        others = [c for c in CODECS if c != primary]
+
+        # Deterministic per vendor: the same roster always yields the same mix.
+        seed = abs(hash(vendor_id)) % len(others)
+        secondary = others[seed]
+        tertiary = others[(seed + 1) % len(others)]
+
+        return [primary, secondary, tertiary], [0.62, 0.26, 0.12]
 
     @staticmethod
     def _gen_title_name() -> str:
@@ -320,8 +374,17 @@ def generate_inspection_chain(
     # Adjust fail rate by title fragility
     fail_rate = min(0.95, base_fail_rate * (1 + title["fragility"] * 2))
 
-    # Max attempts varies: 80% of chains resolve in ≤3 attempts
-    max_attempts = int(rng.choice([1, 2, 3, 4, 5, 6], p=[0.45, 0.25, 0.15, 0.08, 0.04, 0.03]))
+    # Chain depth is an OUTCOME, not a pre-drawn number.
+    #
+    # The previous version drew max_attempts up front with p(1)=0.45, so nearly
+    # half of all chains were capped at a single inspection before anything was
+    # simulated — and since a chain only continues on a blocking failure (most
+    # Photon codes are WARNING-level), 98.2% of rows ended up at attempt 0 and
+    # exactly one row in 50M reached attempt 4. That leaves nothing to reason
+    # over, and reasoning over redelivery history is the whole premise.
+    #
+    # A delivery is now redelivered whenever it fails blocking, up to a cap.
+    max_attempts = MAX_REDELIVERY_ATTEMPTS
 
     chain: list[dict[str, Any]] = []
     current_date = start_date
@@ -341,8 +404,15 @@ def generate_inspection_chain(
         if end_date is not None and inspected_at > end_date:
             break
 
-        # Determine pass/fail — fail rate decreases with each attempt (learning)
-        attempt_fail_rate = fail_rate * (0.7 ** attempt)
+        # First submission uses the vendor's baseline rate. A REDELIVERY is a
+        # different population: this package has already failed blocking once,
+        # so it is a troubled delivery, not an average one. Resetting it to the
+        # baseline rate is what made attempt-2 chains vanish. The elevated rate
+        # decays as the vendor works the problem.
+        if attempt == 0:
+            attempt_fail_rate = fail_rate
+        else:
+            attempt_fail_rate = REDELIVERY_FAIL_RATE * (REDELIVERY_DECAY ** (attempt - 1))
         is_fail = rng.random() < attempt_fail_rate
 
         if is_fail and not resolved:
@@ -352,6 +422,22 @@ def generate_inspection_chain(
             # Severity comes from Photon's own error level for this code, not
             # from a hand-written category→severity table.
             severity = SEVERITY_BY_CODE.get(error_code, "blocking")
+
+            # On a redelivery, the package is back because something blocking
+            # was wrong. Drawing severity from the raw Photon distribution
+            # (~73% WARNING) would end most redelivery chains at their second
+            # inspection with a cosmetic finding, which is not what a
+            # redelivery loop looks like.
+            blocking_codes = CODES_BY_SEVERITY.get("blocking", [])
+            if (
+                attempt > 0
+                and severity != "blocking"
+                and blocking_codes
+                and rng.random() < REDELIVERY_BLOCKING_BIAS
+            ):
+                error_code = str(rng.choice(blocking_codes))
+                severity = "blocking"
+                category = CATEGORY_BY_CODE.get(error_code, category)
             messages = ERROR_MESSAGES.get(error_code, _DEFAULT_MESSAGES)
             error_message = str(rng.choice(messages))
 
