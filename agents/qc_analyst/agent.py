@@ -48,7 +48,7 @@ from agents.shared.models import (
 )
 
 log = structlog.get_logger(__name__)
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
 
 
 async def run_qc_analyst(

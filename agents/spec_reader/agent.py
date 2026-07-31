@@ -41,7 +41,7 @@ from agents.spec_reader.spec_loader import fetch_spec
 
 log = structlog.get_logger(__name__)
 
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
 
 
 async def run_spec_reader(qc_result: QCResult) -> SpecClassification:

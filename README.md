@@ -42,7 +42,7 @@ or *what the next package will fail on* before it's ever submitted.
                                    │
                     ┌──────────────▼──────────────────┐
                     │         Orchestrator Agent       │
-                    │    (Google ADK / Gemini 2.0)     │
+                    │    (Google ADK / Gemini Flash)     │
                     └──┬───────────────────┬──────────┘
                        │                   │
           ┌────────────▼──────┐   ┌────────▼──────────┐
@@ -72,7 +72,7 @@ or *what the next package will fail on* before it's ever submitted.
 ```
 
 **Tech stack:**
-- **Agents:** Google ADK + Gemini 2.0 Flash (`google-adk`, `google-genai`)
+- **Agents:** Google ADK + Gemini Flash (`google-adk`, `google-genai`)
 - **Analytical DB:** ClickHouse Cloud via `mcp-clickhouse` MCP server
 - **Error taxonomy ground truth:** Netflix Photon (open-source IMF validator)
 - **Hosting:** Google Cloud Run + Secret Manager + IAM

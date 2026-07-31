@@ -139,7 +139,7 @@ async def run_gate2_smoke_test() -> bool:
         print("\n[GATE 2] Creating LlmAgent with ClickHouse MCP tools...")
         agent = LlmAgent(
             name="gate2_probe_agent",
-            model=os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
+            model=os.environ.get("GEMINI_MODEL", "gemini-flash-latest"),
             description=(
                 "Gate 2 probe agent. Queries ClickHouse via MCP to verify "
                 "the end-to-end integration works."
