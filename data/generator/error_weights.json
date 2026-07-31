@@ -1,71 +1,31 @@
 {
-  "_comment": "Failure weight distribution for the synthetic QC corpus generator.",
-  "_grounding": "Based on documented Netflix IMF submission patterns and Photon error taxonomy harvest.",
-  "_schema": "Each entry: error_code → weight (relative probability when this category is selected).",
+  "_comment": "Behavioural knobs for the synthetic QC corpus generator.",
 
-  "category_weights": {
-    "_comment": "Top-level category probabilities. Must sum to 1.0.",
-    "structural": 0.40,
-    "audio":      0.20,
-    "essence":    0.15,
-    "metadata":   0.10,
-    "subtitle":   0.08,
-    "integrity":  0.05,
-    "advisory":   0.02
-  },
+  "_what_changed": [
+    "This file previously also carried category_weights and code_weights_within_category,",
+    "listing error codes such as IMF_ESSENCE_EXCEPTION, IMF_AUDIO_LOUDNESS_ERROR,",
+    "IMF_SUBTITLE_ERROR, IMF_DOLBY_VISION_ERROR, IMF_HDR_ERROR, IMF_CODEC_ERROR and",
+    "IMF_HASH_ERROR. None of those are real Photon codes. All code, category and",
+    "severity weighting now derives from data/photon_harvest/error_taxonomy.json,",
+    "which is harvested from Photon itself — see infra/photon/harvest_all.sh."
+  ],
 
-  "code_weights_within_category": {
-    "structural": {
-      "_comment": "CPL errors are the dominant automated failure — most common single code.",
-      "IMF_CPL_ERROR":               0.45,
-      "IMF_AM_ERROR":                0.25,
-      "IMF_PKL_ERROR":               0.15,
-      "IMF_UUID_ERROR":              0.07,
-      "IMF_VERSION_ERROR":           0.05,
-      "IMF_INTEROP_ERROR":           0.03
-    },
-    "audio": {
-      "_comment": "Loudness compliance dominates audio failures (~60% of audio errors).",
-      "IMF_AUDIO_LOUDNESS_ERROR":    0.60,
-      "IMF_AUDIO_CHANNEL_ERROR":     0.30,
-      "IMF_CORE_CONSTRAINTS_EXCEPTION": 0.10
-    },
-    "essence": {
-      "IMF_ESSENCE_EXCEPTION":       0.35,
-      "IMF_EDIT_RATE_ERROR":         0.20,
-      "IMF_COLOR_SPACE_ERROR":       0.18,
-      "IMF_CODEC_ERROR":             0.15,
-      "IMF_FRAME_RATE_ERROR":        0.07,
-      "IMF_RESOLUTION_ERROR":        0.05
-    },
-    "metadata": {
-      "IMF_DOLBY_VISION_ERROR":      0.40,
-      "IMF_HDR_ERROR":               0.30,
-      "IMF_METADATA_ERROR":          0.20,
-      "IMF_TIMECODE_ERROR":          0.10
-    },
-    "subtitle": {
-      "IMF_SUBTITLE_ERROR":          0.80,
-      "IMF_METADATA_ERROR":          0.20
-    },
-    "integrity": {
-      "IMF_HASH_ERROR":              0.70,
-      "IMF_MASTER_PACKAGE_ERROR":    0.30
-    },
-    "advisory": {
-      "IMF_INTEROP_ERROR":           0.50,
-      "IMF_BITRATE_ERROR":           0.30,
-      "IMF_METADATA_ERROR":          0.20
-    }
-  },
+  "_scope": [
+    "What remains here is only what the Photon harvest cannot tell us: how a",
+    "delivery relationship behaves over time. These are explicit modeling",
+    "assumptions about vendor behaviour and remediation economics, not",
+    "measurements, and the writeup should describe them that way."
+  ],
 
   "vendor_weakness_bias": {
-    "_comment": "When a vendor's weakness category is sampled, probability that the error code comes from that category (vs the general distribution).",
+    "_comment": "P(a vendor's failure is drawn from its characteristic weakness category) vs the measured global distribution. Creates the per-vendor failure signatures the QC-Analyst agent reasons over.",
+    "_status": "assumption",
     "bias_probability": 0.60
   },
 
   "redelivery_attempt_distribution": {
     "_comment": "P(attempt count = n) for a failing title's redelivery chain. Weighted toward early resolution.",
+    "_status": "assumption",
     "1": 0.45,
     "2": 0.25,
     "3": 0.15,
@@ -75,14 +35,16 @@
   },
 
   "remediation_cost_usd": {
-    "_comment": "Per-failure remediation cost range. Escalates with redelivery attempt number (factor: 1.5x per attempt).",
+    "_comment": "Per-failure remediation cost range, escalating with each redelivery attempt.",
+    "_status": "assumption",
     "min": 500,
     "max": 15000,
     "escalation_factor_per_attempt": 1.5
   },
 
   "pass_rate_by_attempt": {
-    "_comment": "Cumulative fail rate multiplier per attempt: fail_rate * 0.7^attempt. Models vendor learning/improvement.",
+    "_comment": "Fail rate decays per attempt (fail_rate * factor^attempt), modelling vendor learning across a redelivery chain.",
+    "_status": "assumption",
     "attempt_discount_factor": 0.70
   }
 }

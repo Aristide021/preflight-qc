@@ -1,0 +1,318 @@
+{
+  "schema_version": "2.0",
+  "generated_at": "2026-07-31T00:21:39.725216+00:00",
+  "provenance": {
+    "validator": "Netflix Photon",
+    "source_repo": "https://github.com/Netflix/photon",
+    "declared_from": "com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes",
+    "observed_from": "IMPAnalyzer.analyzeDelivery over IMF packages bundled in Photon src/test/resources/TestIMP",
+    "note": "Every code in this file is a real Photon enum constant. Codes with observed=false are declared by Photon but not exercised by the bundled test packages; they are NOT invented. Category is our modeling decision; severity is derived from Photon's own error levels."
+  },
+  "error_levels": [
+    {
+      "name": "WARNING",
+      "label": "WARNING",
+      "severity": "advisory"
+    },
+    {
+      "name": "NON_FATAL",
+      "label": "NON FATAL",
+      "severity": "blocking"
+    },
+    {
+      "name": "FATAL",
+      "label": "FATAL",
+      "severity": "blocking"
+    }
+  ],
+  "harvest_summary": {
+    "declared_codes": 15,
+    "observed_codes": 8,
+    "observed_error_instances": 188,
+    "packages_analyzed": 37,
+    "packages_with_errors": 35
+  },
+  "errors": [
+    {
+      "error_code": "IMF_ESSENCE_COMPONENT_ERROR",
+      "error_label": "IMF Essence Component Error",
+      "category": "essence",
+      "observed": true,
+      "observed_count": 91,
+      "observed_share": 0.484043,
+      "levels_observed": {
+        "NON_FATAL": 19,
+        "WARNING": 72
+      },
+      "dominant_level": "WARNING",
+      "severity": "advisory",
+      "asset_kinds": {
+        "mxf": 91
+      },
+      "example_messages": [
+        "UUID 61d91654-2650-4abf-abbc-ad2c7f640bf8 in the MXF file is not same as UUID 61d91654-2650-4abf-abbc-ad2c7f640bf9 of the MXF file in the AssetMap",
+        "IMF MGA S-ADM check: MGASoundEssenceDescriptor in the IMFTrackFile represented by ID 7f8c0ad3-1b06-4f6b-be23-cc7ae3fca304 is missing the Reference Audio Alignment Level item.",
+        "IMF MGA S-ADM check: MGASoundEssenceDescriptor in the IMFTrackFile represented by ID 7f8c0ad3-1b06-4f6b-be23-cc7ae3fca304 is missing the Reference Image Edit Rate item."
+      ],
+      "source": "photon_declared_enum+observed"
+    },
+    {
+      "error_code": "IMF_CORE_CONSTRAINTS_ERROR",
+      "error_label": "IMF Core Constraints Error",
+      "category": "structural",
+      "observed": true,
+      "observed_count": 29,
+      "observed_share": 0.154255,
+      "levels_observed": {
+        "WARNING": 25,
+        "NON_FATAL": 4
+      },
+      "dominant_level": "WARNING",
+      "severity": "advisory",
+      "asset_kinds": {
+        "mxf": 14,
+        "cpl": 15
+      },
+      "example_messages": [
+        "IMF IAB check: IABEssenceDescriptor in the IMFTrackFile represented by ID 17c68559-b6de-4525-93f8-17c8ae77f599 is missing the Reference Image Edit Rate item.",
+        "IMF IAB check: IABEssenceDescriptor in the IMFTrackFile represented by ID 17c68559-b6de-4525-93f8-17c8ae77f599 is missing the Reference Audio Alignment Level item.",
+        "IMF IAB check: IABSoundfieldLabelSubDescriptor in the IMFTrackFile represented by ID 17c68559-b6de-4525-93f8-17c8ae77f599 is missing MCAAudioContentKind"
+      ],
+      "source": "photon_declared_enum+observed"
+    },
+    {
+      "error_code": "APPLICATION_COMPOSITION_ERROR",
+      "error_label": "Application Composition error",
+      "category": "structural",
+      "observed": true,
+      "observed_count": 22,
+      "observed_share": 0.117021,
+      "levels_observed": {
+        "WARNING": 15,
+        "NON_FATAL": 6,
+        "FATAL": 1
+      },
+      "dominant_level": "WARNING",
+      "severity": "advisory",
+      "asset_kinds": {
+        "cpl": 22
+      },
+      "example_messages": [
+        "INFO (can be ignored): EssenceDescriptor with ID adeb0650-b940-45e8-9ab2-7328649b4c16: No ACESPictureSubDescriptor found",
+        "INFO (can be ignored): EssenceDescriptor with ID adeb0650-b940-45e8-9ab2-7328649b4c16: No TargetFrameSubDescriptor found",
+        "EssenceDescriptor with ID adeb0650-b940-45e8-9ab2-7328649b4c16: A ContainerConstraintsSubDescriptor shall be present per ST 379-2, but is missing"
+      ],
+      "source": "photon_declared_enum+observed"
+    },
+    {
+      "error_code": "IMF_MASTER_PACKAGE_ERROR",
+      "error_label": "IMF Master Package Error",
+      "category": "structural",
+      "observed": true,
+      "observed_count": 22,
+      "observed_share": 0.117021,
+      "levels_observed": {
+        "WARNING": 22
+      },
+      "dominant_level": "WARNING",
+      "severity": "advisory",
+      "asset_kinds": {
+        "cpl": 22
+      },
+      "example_messages": [
+        "Skipping validation for track file with id: urn:uuid:db8a1a5b-ad90-44cf-bf25-455dcce73ab5. File referenced from CPL, but not available for validation."
+      ],
+      "source": "photon_declared_enum+observed"
+    },
+    {
+      "error_code": "IMF_CPL_ERROR",
+      "error_label": "IMF CPL Error",
+      "category": "structural",
+      "observed": true,
+      "observed_count": 10,
+      "observed_share": 0.053191,
+      "levels_observed": {
+        "WARNING": 2,
+        "NON_FATAL": 8
+      },
+      "dominant_level": "NON_FATAL",
+      "severity": "blocking",
+      "asset_kinds": {
+        "cpl": 9,
+        "opl": 1
+      },
+      "example_messages": [
+        "Namespace not supported: http://www.smpte-ra.org/schemas/2067-20/2016",
+        "Namespace not supported: http://www.smpte-ra.org/ns/unknown",
+        "UUID 0eb3d1b9-b77b-4d3f-bbe5-7c69b15dca84 in the CPL is not same as UUID 0eb3d1b9-b77b-4d3f-bbe5-7c69b15dca85 of the CPL in the AssetMap"
+      ],
+      "source": "photon_declared_enum+observed"
+    },
+    {
+      "error_code": "IMF_PKL_ERROR",
+      "error_label": "IMF PKL Error",
+      "category": "structural",
+      "observed": true,
+      "observed_count": 8,
+      "observed_share": 0.042553,
+      "levels_observed": {
+        "FATAL": 3,
+        "NON_FATAL": 4,
+        "WARNING": 1
+      },
+      "dominant_level": "NON_FATAL",
+      "severity": "blocking",
+      "asset_kinds": {
+        "pkl": 8
+      },
+      "example_messages": [
+        "Failed to get path for Asset with ID = bc1a3912-a90a-41b2-b16c-0915a2a1e088",
+        "Failed to get path for Asset with ID = ab38ef76-30fa-4b18-91d2-1ef95e206b46",
+        "Cannot find asset with id: urn:uuid:a3542de6-5010-41aa-8ab0-d90b90b7f5dc (path according to asset map: /photon/test_vectors/MissingFilesAndAssetMapEntries/VIDEO_a3542de6-5010-41aa-8ab0-d90b90b7f5dc.mxf)"
+      ],
+      "source": "photon_declared_enum+observed"
+    },
+    {
+      "error_code": "IMF_AM_ERROR",
+      "error_label": "IMF AssetMap Error",
+      "category": "structural",
+      "observed": true,
+      "observed_count": 5,
+      "observed_share": 0.026596,
+      "levels_observed": {
+        "FATAL": 3,
+        "NON_FATAL": 2
+      },
+      "dominant_level": "FATAL",
+      "severity": "blocking",
+      "asset_kinds": {
+        "other": 4,
+        "assetmap": 1
+      },
+      "example_messages": [
+        "Line Number : 23 - cvc-complex-type.2.4.a: Invalid content was found starting with element '{\"http://www.smpte-ra.org/schemas/429-9/2007/AM\":Chunk}'. One of '{\"http://www.smpte-ra.org/schemas/429-9/2007/AM\":AnnotationText, \"http://www.smpte-ra.org/schemas/429-9/2007/AM\":PackingList, \"http://www.smpt",
+        "Line Number : 25 - cvc-complex-type.2.3: Element 'VolumeIndex' cannot have character [children], because the type's content type is element-only.",
+        "Line Number : 25 - cvc-complex-type.2.4.b: The content of element 'VolumeIndex' is not complete. One of '{\"http://www.smpte-ra.org/schemas/429-9/2007/AM\":Index}' is expected."
+      ],
+      "source": "photon_declared_enum+observed"
+    },
+    {
+      "error_code": "IMF_OPL_ERROR",
+      "error_label": "IMF OPL Error",
+      "category": "structural",
+      "observed": true,
+      "observed_count": 1,
+      "observed_share": 0.005319,
+      "levels_observed": {
+        "WARNING": 1
+      },
+      "dominant_level": "WARNING",
+      "severity": "advisory",
+      "asset_kinds": {
+        "opl": 1
+      },
+      "example_messages": [
+        "Failed to get application composition with ID = 0eb3d1b9-b77b-4d3f-bbe5-7c69b15dca85 for OutputProfileList with ID 8cf83c32-4949-4f00-b081-01e12b18932e"
+      ],
+      "source": "photon_declared_enum+observed"
+    },
+    {
+      "error_code": "IMF_CORE_CONSTRAINTS_ESSENCE_DESCRIPTOR_LIST_MISSING",
+      "error_label": "IMF Core Constraints Essence Descriptor List Missing",
+      "category": "structural",
+      "observed": false,
+      "observed_count": 0,
+      "observed_share": 0.0,
+      "levels_observed": {},
+      "dominant_level": null,
+      "severity": null,
+      "asset_kinds": {},
+      "example_messages": [],
+      "source": "photon_declared_enum"
+    },
+    {
+      "error_code": "IMF_ESSENCE_METADATA_ERROR",
+      "error_label": "IMF Essence metadata Error",
+      "category": "essence",
+      "observed": false,
+      "observed_count": 0,
+      "observed_share": 0.0,
+      "levels_observed": {},
+      "dominant_level": null,
+      "severity": null,
+      "asset_kinds": {},
+      "example_messages": [],
+      "source": "photon_declared_enum"
+    },
+    {
+      "error_code": "IMP_VALIDATOR_PAYLOAD_ERROR",
+      "error_label": "IMP Validator Payload Error",
+      "category": "integrity",
+      "observed": false,
+      "observed_count": 0,
+      "observed_share": 0.0,
+      "levels_observed": {},
+      "dominant_level": null,
+      "severity": null,
+      "asset_kinds": {},
+      "example_messages": [],
+      "source": "photon_declared_enum"
+    },
+    {
+      "error_code": "INTERNAL_ERROR",
+      "error_label": "Internal processing error",
+      "category": "internal",
+      "observed": false,
+      "observed_count": 0,
+      "observed_share": 0.0,
+      "levels_observed": {},
+      "dominant_level": null,
+      "severity": null,
+      "asset_kinds": {},
+      "example_messages": [],
+      "source": "photon_declared_enum"
+    },
+    {
+      "error_code": "SMPTE_REGISTER_PARSING_ERROR",
+      "error_label": "SMPTE Register parsing error",
+      "category": "metadata",
+      "observed": false,
+      "observed_count": 0,
+      "observed_share": 0.0,
+      "levels_observed": {},
+      "dominant_level": null,
+      "severity": null,
+      "asset_kinds": {},
+      "example_messages": [],
+      "source": "photon_declared_enum"
+    },
+    {
+      "error_code": "URI_ERROR",
+      "error_label": "URI Syntax Error",
+      "category": "structural",
+      "observed": false,
+      "observed_count": 0,
+      "observed_share": 0.0,
+      "levels_observed": {},
+      "dominant_level": null,
+      "severity": null,
+      "asset_kinds": {},
+      "example_messages": [],
+      "source": "photon_declared_enum"
+    },
+    {
+      "error_code": "UUID_ERROR",
+      "error_label": "UUID Syntax Error",
+      "category": "structural",
+      "observed": false,
+      "observed_count": 0,
+      "observed_share": 0.0,
+      "levels_observed": {},
+      "dominant_level": null,
+      "severity": null,
+      "asset_kinds": {},
+      "example_messages": [],
+      "source": "photon_declared_enum"
+    }
+  ]
+}

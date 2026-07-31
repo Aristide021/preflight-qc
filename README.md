@@ -106,20 +106,35 @@ from mcp import ClientSession
 
 ## Data Provenance
 
-**What's real:**
-- Error codes, categories, and message shapes: harvested from Netflix's open-source
-  [Photon IMF validator](https://github.com/Netflix/photon) running against
-  public IMF test vectors
-- Schema fields: derived from the published Netflix IMF delivery specification
-  (loudness, app profile, subtitle presence, Dolby Vision metadata,
-  container structure)
+**What's real — harvested from Photon, not hand-written:**
+- **Error codes:** all 15 constants of `IMFErrorLogger.IMFErrors.ErrorCodes`,
+  dumped from Photon v5.0.1's own loaded classes
+- **Error severities:** derived from Photon's `WARNING` / `NON_FATAL` / `FATAL`
+  levels, not from an assumed mapping
+- **Message text:** verbatim strings from 188 real error instances, produced by
+  running `IMPAnalyzer.analyzeDelivery` over 37 of the IMF packages Photon ships
+  in `src/test/resources/TestIMP`
+- **Failure frequencies:** measured from those runs, and used directly to weight
+  the corpus
 
-**What's synthetic:**
+Reproduce it end to end with `./infra/photon/harvest_all.sh`. The evidence is
+committed under `data/photon_harvest/`.
+
+**What's synthetic — and labelled as such:**
 - Volume (50M+ rows): synthesized because production QC data is proprietary
-- Failure distributions: weighted toward documented-common failures (CPL errors
-  as the most frequent automated failure category)
-- Redelivery loops: modeled from documented industry patterns (typical 2–3
-  attempt loops for vendor-class errors)
+- Delivery metadata (titles, vendors, dates, codecs): synthesized
+- Vendor behaviour and remediation economics — redelivery chain lengths, cost
+  escalation, per-vendor weakness bias. These are explicit assumptions in
+  `data/generator/error_weights.json`, each tagged `"_status": "assumption"`
+
+**What's deliberately absent:**
+Photon validates IMF structure and essence. It does **not** check integrated
+loudness, subtitle presence, or Dolby Vision metadata, so no such codes appear
+in the corpus. Adding them means grounding a second source in the published
+Netflix delivery spec — see `data/photon_harvest/README.md`.
+
+The generator refuses to run without the harvested taxonomy rather than falling
+back to invented codes.
 
 ---
 
@@ -190,7 +205,7 @@ preflight-qc/
 │   ├── clickhouse_config.yaml     # MCP server config
 │   └── gate2_smoke_test.py        # Gate 2 proof artifact
 ├── infra/
-│   ├── photon/                    # Photon Docker wrapper
+│   ├── photon/                    # Photon Docker wrapper + harvester
 │   ├── cloudrun/                  # Cloud Run service definition
 │   ├── secretmanager/             # Secret Manager bootstrap
 │   └── iam/                       # IAM policy

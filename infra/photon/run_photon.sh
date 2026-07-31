@@ -1,113 +1,67 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# Gate 1: Run Netflix Photon against an IMF test vector and harvest error codes.
+# Run Photon against a single IMF package.
+#
+# This is the ad-hoc inspection utility. Gate 1 — harvesting the full error
+# taxonomy — lives in ./harvest_all.sh, which sweeps every bundled test package
+# and writes data/photon_harvest/error_taxonomy.json.
 #
 # USAGE:
-#   ./infra/photon/run_photon.sh [IMF_PACKAGE_PATH]
+#   ./infra/photon/run_photon.sh /path/to/IMF_Package     # your own package
+#   ./infra/photon/run_photon.sh --list                   # bundled vectors
+#   ./infra/photon/run_photon.sh --bundled <NAME>         # a bundled vector
+#   ./infra/photon/run_photon.sh --json /path/to/Package  # structured JSONL
 #
-# If no path is given, downloads the imf-plugfest public test vector first.
-# Output is written to data/photon_harvest/raw/ and then parsed into
-# data/photon_harvest/error_taxonomy.json.
-#
-# Gate 1 is GREEN when error_taxonomy.json contains ≥10 distinct IMF_* codes.
+# Text mode runs IMPAnalyzer (human-readable prose). JSON mode runs
+# PhotonHarvester, which reads structured ErrorObjects via the API and emits
+# the real (code, level, description) triples — the CLI text never contains
+# the enum constants.
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-HARVEST_DIR="$PROJECT_ROOT/data/photon_harvest"
-RAW_DIR="$HARVEST_DIR/raw"
 IMAGE_NAME="photon-validator"
 
-mkdir -p "$RAW_DIR"
-
-# ── 1. Build the Photon Docker image (if not already built) ──────────────────
-echo "▶ Building Photon Docker image (this takes ~3 minutes first time)..."
-docker build \
-    -t "$IMAGE_NAME" \
-    -f "$SCRIPT_DIR/Dockerfile.photon" \
-    "$PROJECT_ROOT" \
-    --quiet
-
-echo "✓ Image built: $IMAGE_NAME"
-
-# ── 2. Resolve the IMF package path ─────────────────────────────────────────
-IMF_PATH="${1:-}"
-
-if [[ -z "$IMF_PATH" ]]; then
-    echo ""
-    echo "No IMF package path provided. Attempting to use imf-plugfest test vectors..."
-    echo ""
-    echo "  Option A — download from imf-plugfest S3 (if still reachable):"
-    echo "    aws s3 cp s3://imf-plugfest/imf-packages/Netflix_OV/ ./test_vectors/Netflix_OV/ --recursive --no-sign-request"
-    echo ""
-    echo "  Option B — use Photon's bundled test resources:"
-    echo "    docker run --rm $IMAGE_NAME will show available built-in test options"
-    echo ""
-    echo "  Option C — point at any local IMF package:"
-    echo "    $0 /path/to/your/IMF_Package"
-    echo ""
-
-    # Try to run Photon's built-in self-test (uses resources bundled in the JAR)
-    echo "▶ Running Photon built-in self-test to harvest error vocabulary..."
-    docker run --rm "$IMAGE_NAME" 2>&1 | tee "$RAW_DIR/builtin_run.txt" || true
-
-    # If that produces nothing useful, generate a deliberately malformed package
-    echo ""
-    echo "▶ Generating deliberately malformed IMF package for Photon to reject..."
-    bash "$SCRIPT_DIR/make_malformed_imf.sh" "$RAW_DIR/malformed_imf"
-    IMF_PATH="$RAW_DIR/malformed_imf"
+if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
+    echo "▶ Building $IMAGE_NAME (first run takes ~5 minutes)..."
+    docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile.photon" "$PROJECT_ROOT"
 fi
 
-# ── 3. Run Photon against the IMF package ────────────────────────────────────
-echo ""
-echo "▶ Running Photon against: $IMF_PATH"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-OUTPUT_FILE="$RAW_DIR/photon_run_$TIMESTAMP.txt"
+MODE="text"
+case "${1:-}" in
+    --list)
+        docker run --rm --entrypoint sh "$IMAGE_NAME" -c \
+            'find /photon/test_vectors -mindepth 1 -maxdepth 2 -type d \
+                 -exec test -e "{}/ASSETMAP.xml" \; -print \
+             | sed "s|/photon/test_vectors/||" | sort'
+        exit 0
+        ;;
+    --bundled)
+        [[ $# -ge 2 ]] || { echo "usage: $0 --bundled <NAME>" >&2; exit 2; }
+        docker run --rm --entrypoint IMPAnalyzer "$IMAGE_NAME" "/photon/test_vectors/$2"
+        exit 0
+        ;;
+    --json)
+        MODE="json"
+        shift
+        ;;
+    "")
+        echo "usage: $0 [--json] <IMF_PACKAGE_PATH>" >&2
+        echo "       $0 --list" >&2
+        echo "       $0 --bundled <NAME>" >&2
+        exit 2
+        ;;
+esac
 
-docker run --rm \
-    -v "$(realpath "$IMF_PATH"):/imf_package:ro" \
-    "$IMAGE_NAME" \
-    /imf_package \
-    2>&1 | tee "$OUTPUT_FILE"
+IMF_PATH="$1"
+[[ -d "$IMF_PATH" ]] || { echo "ERROR: not a directory: $IMF_PATH" >&2; exit 1; }
 
-echo ""
-echo "✓ Raw Photon output saved: $OUTPUT_FILE"
+ABS_PATH="$(cd "$IMF_PATH" && pwd)"
 
-# ── 4. Parse output → error_taxonomy.json ────────────────────────────────────
-echo ""
-echo "▶ Parsing error codes into error_taxonomy.json..."
-
-python3 "$SCRIPT_DIR/parse_photon_output.py" \
-    --input "$OUTPUT_FILE" \
-    --output "$HARVEST_DIR/error_taxonomy.json"
-
-# ── 5. Gate 1 check ──────────────────────────────────────────────────────────
-echo ""
-DISTINCT_CODES=$(python3 -c "
-import json, sys
-try:
-    data = json.load(open('$HARVEST_DIR/error_taxonomy.json'))
-    codes = [e['error_code'] for e in data.get('errors', [])]
-    print(len(set(codes)))
-except Exception as e:
-    print(0)
-")
-
-echo "Gate 1 check: $DISTINCT_CODES distinct error codes harvested"
-
-if (( DISTINCT_CODES >= 10 )); then
-    echo ""
-    echo "════════════════════════════════════════════════════════"
-    echo "  ✅  GATE 1 GREEN — $DISTINCT_CODES distinct IMF error codes"
-    echo "      error_taxonomy.json is ready for Phase 1."
-    echo "════════════════════════════════════════════════════════"
-    exit 0
+if [[ "$MODE" == "json" ]]; then
+    docker run --rm -v "$ABS_PATH:/imf:ro" \
+        --entrypoint PhotonHarvester "$IMAGE_NAME" /imf 2>/dev/null
 else
-    echo ""
-    echo "════════════════════════════════════════════════════════"
-    echo "  ❌  GATE 1 NOT YET GREEN — only $DISTINCT_CODES codes found."
-    echo "      Try more test vectors. See README for fallback options."
-    echo "════════════════════════════════════════════════════════"
-    exit 1
+    docker run --rm -v "$ABS_PATH:/imf:ro" "$IMAGE_NAME" /imf
 fi

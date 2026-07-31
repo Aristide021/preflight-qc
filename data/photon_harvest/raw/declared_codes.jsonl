@@ -1,0 +1,18 @@
+{"kind":"error_code","name":"IMF_ESSENCE_METADATA_ERROR","label":"IMF Essence metadata Error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"IMF_ESSENCE_COMPONENT_ERROR","label":"IMF Essence Component Error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"IMF_CPL_ERROR","label":"IMF CPL Error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"IMF_PKL_ERROR","label":"IMF PKL Error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"IMF_AM_ERROR","label":"IMF AssetMap Error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"IMF_CORE_CONSTRAINTS_ERROR","label":"IMF Core Constraints Error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"IMF_CORE_CONSTRAINTS_ESSENCE_DESCRIPTOR_LIST_MISSING","label":"IMF Core Constraints Essence Descriptor List Missing","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"IMF_MASTER_PACKAGE_ERROR","label":"IMF Master Package Error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"IMP_VALIDATOR_PAYLOAD_ERROR","label":"IMP Validator Payload Error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"UUID_ERROR","label":"UUID Syntax Error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"URI_ERROR","label":"URI Syntax Error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"INTERNAL_ERROR","label":"Internal processing error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"APPLICATION_COMPOSITION_ERROR","label":"Application Composition error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"SMPTE_REGISTER_PARSING_ERROR","label":"SMPTE Register parsing error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_code","name":"IMF_OPL_ERROR","label":"IMF OPL Error","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorCodes"}
+{"kind":"error_level","name":"WARNING","label":"WARNING","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorLevels"}
+{"kind":"error_level","name":"NON_FATAL","label":"NON FATAL","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorLevels"}
+{"kind":"error_level","name":"FATAL","label":"FATAL","enum":"com.netflix.imflibrary.IMFErrorLogger$IMFErrors$ErrorLevels"}

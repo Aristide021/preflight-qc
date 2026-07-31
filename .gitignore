@@ -69,7 +69,7 @@ web/.env.local
 
 # Data / generated files
 data/generator/output/
-data/photon_harvest/raw/
+# data/photon_harvest/raw/ is committed — it is the Gate 1 evidence
 *.parquet
 *.csv.gz
 

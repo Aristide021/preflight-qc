@@ -6,9 +6,13 @@ Generates a realistic, Photon-grounded corpus of IMF QC inspection events.
 Output: Parquet files ready for ClickHouse local load.
 
 Design philosophy:
-  - Error codes sourced from data/photon_harvest/error_taxonomy.json (Photon-grounded)
-  - Failure distributions weighted toward documented-common failures
-    (CPL errors are the most frequent automated failure category)
+  - Every error code is a real constant of Photon's IMFErrorLogger ErrorCodes
+    enum, read from data/photon_harvest/error_taxonomy.json. The generator
+    refuses to run without that file rather than inventing codes.
+  - Failure distributions are measured, not asserted: code and category weights
+    come from the frequencies Photon actually produced across the bundled IMF
+    test packages. (Measured order is essence-component and core-constraints
+    first, ahead of CPL errors.)
   - Realistic redelivery loops: titles fail → redeliver → fail again → resolve
     (narratively shaped history that agents can reason over)
   - Volume: 10–50M rows across 500+ titles / 20+ vendors / 3+ spec versions
@@ -34,7 +38,7 @@ import argparse
 import json
 import random
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -51,55 +55,97 @@ from tqdm import tqdm
 _TAXONOMY_PATH = Path(__file__).parent.parent / "photon_harvest" / "error_taxonomy.json"
 
 def _load_taxonomy() -> list[dict]:
-    """Load error taxonomy from Photon harvest output."""
-    if _TAXONOMY_PATH.exists():
-        data = json.loads(_TAXONOMY_PATH.read_text())
-        return data.get("errors", [])
-    # Fallback: minimal seed if harvest hasn't run yet
-    print(f"⚠️  Taxonomy not found at {_TAXONOMY_PATH}. Using minimal seed.")
-    print("    Run infra/photon/run_photon.sh first for full grounding.")
-    return [
-        {"error_code": "IMF_CPL_ERROR", "category": "structural", "severity": "blocking"},
-        {"error_code": "IMF_AM_ERROR", "category": "structural", "severity": "blocking"},
-        {"error_code": "IMF_PKL_ERROR", "category": "structural", "severity": "blocking"},
-        {"error_code": "IMF_ESSENCE_EXCEPTION", "category": "essence", "severity": "blocking"},
-        {"error_code": "IMF_AUDIO_LOUDNESS_ERROR", "category": "audio", "severity": "blocking"},
-        {"error_code": "IMF_SUBTITLE_ERROR", "category": "subtitle", "severity": "blocking"},
-        {"error_code": "IMF_DOLBY_VISION_ERROR", "category": "metadata", "severity": "blocking"},
-        {"error_code": "IMF_COLOR_SPACE_ERROR", "category": "essence", "severity": "blocking"},
-        {"error_code": "IMF_HASH_ERROR", "category": "integrity", "severity": "blocking"},
-        {"error_code": "IMF_METADATA_ERROR", "category": "metadata", "severity": "cosmetic"},
-    ]
+    """
+    Load the Photon-harvested error taxonomy.
+
+    There is deliberately no fallback seed list. The previous version fell back
+    to hand-written codes — most of which do not exist in Photon — which meant a
+    missing harvest silently produced a corpus of invented error codes. Failing
+    loudly is the point: the taxonomy is the grounding, and a corpus built
+    without it is worthless.
+    """
+    if not _TAXONOMY_PATH.exists():
+        raise SystemExit(
+            f"ERROR: error taxonomy not found at {_TAXONOMY_PATH}\n"
+            "       Run ./infra/photon/harvest_all.sh first (Gate 1).\n"
+            "       The generator will not invent error codes."
+        )
+
+    data = json.loads(_TAXONOMY_PATH.read_text())
+    entries = data.get("errors", [])
+    if not entries:
+        raise SystemExit(f"ERROR: taxonomy at {_TAXONOMY_PATH} contains no errors.")
+    return entries
 
 
 TAXONOMY = _load_taxonomy()
 
+# Every code sampled below is a real constant of Photon's ErrorCodes enum —
+# nothing here is invented. Codes the harvest actually exercised are weighted by
+# their measured frequency; codes Photon declares but the bundled test packages
+# never triggered get a floor weight so they appear rarely rather than never.
+# That floor is a modeling assumption (a real delivery pipeline sees the whole
+# vocabulary, not just what 37 test packages happen to cover) — it is the only
+# assumption in the frequency model, and it is confined to this constant.
+UNOBSERVED_FLOOR_WEIGHT = 1.0
+
+_OBSERVED = [e for e in TAXONOMY if e.get("observed") and e.get("observed_count", 0) > 0]
+if not _OBSERVED:
+    raise SystemExit("ERROR: taxonomy contains no observed codes — re-run the harvest.")
+
+# Skip INTERNAL_ERROR: it signals a Photon processing fault, not a delivery
+# defect, so it does not belong in a corpus of delivery QC results.
+_SAMPLABLE = [e for e in TAXONOMY if e.get("category") != "internal"]
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Failure weight distribution
-# Grounded in documented Netflix IMF submission patterns:
-#   - CPL/structural errors: most common automated failure (~40%)
-#   - Audio compliance: 2nd most common (~20%)
-#   - Essence/codec: ~15%
-#   - Metadata: ~10%
-#   - Subtitle: ~8%
-#   - Integrity/hash: ~5%
-#   - Advisory: ~2%
+# Failure weight distribution — derived, not asserted.
+#
+# Category and code frequencies come from the observed counts in the harvest
+# (188 real error instances across 37 IMF packages). The previous version hard
+# coded percentages ("CPL errors ~40%, audio ~20%") that were not measured from
+# anything, and referenced audio/subtitle categories Photon does not validate.
+#
+# NOTE (open scope): Photon is a structural/essence IMF validator. It does not
+# check loudness, subtitle presence, or Dolby Vision metadata. A real delivery
+# pipeline runs those as separate checks against the platform delivery spec.
+# Those spec-derived checks are a SECOND source and are intentionally absent
+# here rather than invented — see data/photon_harvest/README.md.
 # ─────────────────────────────────────────────────────────────────────────────
-CATEGORY_WEIGHTS: dict[str, float] = {
-    "structural": 0.40,
-    "audio":      0.20,
-    "essence":    0.15,
-    "metadata":   0.10,
-    "subtitle":   0.08,
-    "integrity":  0.05,
-    "advisory":   0.02,
+_CODES_BY_CATEGORY: dict[str, list[str]] = {}
+_CODE_WEIGHTS_BY_CATEGORY: dict[str, list[float]] = {}
+CATEGORY_WEIGHTS: dict[str, float] = {}
+
+for entry in _SAMPLABLE:
+    cat = entry.get("category", "unknown")
+    weight = float(entry.get("observed_count", 0)) or UNOBSERVED_FLOOR_WEIGHT
+    _CODES_BY_CATEGORY.setdefault(cat, []).append(entry["error_code"])
+    _CODE_WEIGHTS_BY_CATEGORY.setdefault(cat, []).append(weight)
+    CATEGORY_WEIGHTS[cat] = CATEGORY_WEIGHTS.get(cat, 0.0) + weight
+
+_total_observed = sum(CATEGORY_WEIGHTS.values())
+CATEGORY_WEIGHTS = {k: v / _total_observed for k, v in CATEGORY_WEIGHTS.items()}
+
+# Normalise per-category code weights so each category sums to 1.0
+for _cat, _weights in _CODE_WEIGHTS_BY_CATEGORY.items():
+    _sum = sum(_weights)
+    _CODE_WEIGHTS_BY_CATEGORY[_cat] = [w / _sum for w in _weights]
+
+# Severity per code, taken from Photon's own error levels (FATAL / NON_FATAL →
+# blocking, WARNING → advisory). "cosmetic" is not assigned here: it is a
+# platform-spec judgment the Spec-Reader agent makes, not a validator verdict.
+SEVERITY_BY_CODE: dict[str, str] = {
+    e["error_code"]: (e.get("severity") or "blocking") for e in _SAMPLABLE
 }
 
-# Group error codes by category for weighted sampling
-_CODES_BY_CATEGORY: dict[str, list[str]] = {}
-for entry in TAXONOMY:
-    cat = entry.get("category", "unknown")
-    _CODES_BY_CATEGORY.setdefault(cat, []).append(entry["error_code"])
+# Verbatim Photon messages, harvested per code. Codes the harvest never
+# exercised have no example text and fall back to their enum label rather than
+# to invented prose.
+ERROR_MESSAGES: dict[str, list[str]] = {
+    e["error_code"]: (e.get("example_messages") or [e.get("error_label") or e["error_code"]])
+    for e in _SAMPLABLE
+}
+
+_DEFAULT_MESSAGES = ["Validation error reported by Photon"]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Platform / vendor / codec universe
@@ -135,26 +181,26 @@ VENDORS = [
 
 # Vendor quality profiles: base_fail_rate, preferred_codec, common_error_category
 VENDOR_PROFILES: dict[str, dict] = {
-    "VND_DELUXE":      {"base_fail_rate": 0.08, "codec": "JPEG2000", "weakness": "audio"},
+    "VND_DELUXE":      {"base_fail_rate": 0.08, "codec": "JPEG2000", "weakness": "essence"},
     "VND_TECHNICOLOR": {"base_fail_rate": 0.06, "codec": "JPEG2000", "weakness": "metadata"},
     "VND_HARBOR":      {"base_fail_rate": 0.04, "codec": "JPEG2000", "weakness": "structural"},
     "VND_PUREPOST":    {"base_fail_rate": 0.12, "codec": "H.265",    "weakness": "structural"},
-    "VND_EFILM":       {"base_fail_rate": 0.07, "codec": "JPEG2000", "weakness": "audio"},
+    "VND_EFILM":       {"base_fail_rate": 0.07, "codec": "JPEG2000", "weakness": "essence"},
     "VND_STREAMLAND":  {"base_fail_rate": 0.09, "codec": "H.264",    "weakness": "essence"},
-    "VND_FOTOKEM":     {"base_fail_rate": 0.05, "codec": "JPEG2000", "weakness": "subtitle"},
-    "VND_ROUNDABOUT":  {"base_fail_rate": 0.15, "codec": "ProRes",   "weakness": "audio"},
+    "VND_FOTOKEM":     {"base_fail_rate": 0.05, "codec": "JPEG2000", "weakness": "integrity"},
+    "VND_ROUNDABOUT":  {"base_fail_rate": 0.15, "codec": "ProRes",   "weakness": "essence"},
     "VND_ASCENT":      {"base_fail_rate": 0.06, "codec": "JPEG2000", "weakness": "metadata"},
     "VND_PIKSEL":      {"base_fail_rate": 0.18, "codec": "H.265",    "weakness": "structural"},
-    "VND_BRIGHTCOVE":  {"base_fail_rate": 0.11, "codec": "H.264",    "weakness": "audio"},
-    "VND_IYUNO":       {"base_fail_rate": 0.08, "codec": "ProRes",   "weakness": "subtitle"},
+    "VND_BRIGHTCOVE":  {"base_fail_rate": 0.11, "codec": "H.264",    "weakness": "essence"},
+    "VND_IYUNO":       {"base_fail_rate": 0.08, "codec": "ProRes",   "weakness": "integrity"},
     "VND_MELS":        {"base_fail_rate": 0.07, "codec": "JPEG2000", "weakness": "essence"},
     "VND_CINELAB":     {"base_fail_rate": 0.05, "codec": "JPEG2000", "weakness": "metadata"},
-    "VND_CHAINSAW":    {"base_fail_rate": 0.13, "codec": "ProRes",   "weakness": "audio"},
+    "VND_CHAINSAW":    {"base_fail_rate": 0.13, "codec": "ProRes",   "weakness": "essence"},
     "VND_FRAMESTORE":  {"base_fail_rate": 0.04, "codec": "JPEG2000", "weakness": "metadata"},
     "VND_MPC":         {"base_fail_rate": 0.05, "codec": "JPEG2000", "weakness": "essence"},
-    "VND_GOLDCREST":   {"base_fail_rate": 0.06, "codec": "JPEG2000", "weakness": "subtitle"},
+    "VND_GOLDCREST":   {"base_fail_rate": 0.06, "codec": "JPEG2000", "weakness": "integrity"},
     "VND_SOHONET":     {"base_fail_rate": 0.09, "codec": "H.265",    "weakness": "structural"},
-    "VND_INDEPENDENT": {"base_fail_rate": 0.22, "codec": "ProRes",   "weakness": "audio"},
+    "VND_INDEPENDENT": {"base_fail_rate": 0.22, "codec": "ProRes",   "weakness": "essence"},
 }
 
 CODECS = ["JPEG2000", "H.264", "H.265", "ProRes", "DNxHR"]
@@ -166,45 +212,6 @@ APP_PROFILES = ["App2E", "App2", "App5", "App5E"]
 QC_STAGES = ["photon", "backlot", "iaas", "auto-qc", "manual-qc"]
 PACKAGE_TYPES = ["IMF", "ProRes", "MXF", "DCP"]
 
-ERROR_MESSAGES: dict[str, list[str]] = {
-    "IMF_CPL_ERROR": [
-        "Missing ApplicationIdentification element in CPL",
-        "CPL EditRate does not match essence track EditRate",
-        "Duplicate CPL UUID detected across package",
-        "CPL SegmentList contains empty ResourceList",
-    ],
-    "IMF_AM_ERROR": [
-        "ASSETMAP references asset not found on disk",
-        "Invalid UUID format in ASSETMAP asset entry",
-        "Missing required Creator element in ASSETMAP",
-        "ASSETMAP VolumeCount mismatch",
-    ],
-    "IMF_AUDIO_LOUDNESS_ERROR": [
-        "Integrated loudness -31.2 LKFS exceeds maximum -24.0 LKFS",
-        "True peak level +0.8 dBTP above maximum -2.0 dBTP",
-        "Integrated loudness -18.4 LKFS above maximum -24.0 LKFS",
-        "Loudness measurement missing for audio track",
-    ],
-    "IMF_ESSENCE_EXCEPTION": [
-        "MXF essence descriptor does not match track file header",
-        "Partition pack start code invalid in track MXF",
-        "Index table missing from video MXF track file",
-        "Essence container label not recognized",
-    ],
-    "IMF_SUBTITLE_ERROR": [
-        "Forced subtitle track required but not present",
-        "Subtitle burn-in detected in video essence",
-        "Timed text TTML schema validation failure",
-        "Subtitle language tag does not match CPL declaration",
-    ],
-    "IMF_DOLBY_VISION_ERROR": [
-        "Dolby Vision RPU missing from video track",
-        "Dolby Vision profile 8 requires base layer in BL+RPU configuration",
-        "Dolby Vision metadata version 1.0 not supported; minimum 2.x required",
-    ],
-}
-
-_DEFAULT_MESSAGES = ["Validation error detected during QC inspection"]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Generator
@@ -214,10 +221,10 @@ rng = np.random.default_rng(seed=42)
 
 
 def _weighted_category() -> str:
-    """Sample an error category according to documented failure distribution."""
+    """Sample an error category using frequencies measured in the Photon harvest."""
     cats = list(CATEGORY_WEIGHTS.keys())
-    weights = list(CATEGORY_WEIGHTS.values())
-    return rng.choice(cats, p=weights / np.array(weights).sum())
+    weights = np.array(list(CATEGORY_WEIGHTS.values()), dtype=float)
+    return str(rng.choice(cats, p=weights / weights.sum()))
 
 
 def _error_code_for_category(category: str, vendor_weakness: str) -> str:
@@ -225,18 +232,20 @@ def _error_code_for_category(category: str, vendor_weakness: str) -> str:
     Sample an error code, biasing toward the vendor's known weakness category.
     This creates the realistic vendor-specific failure signatures that make
     historical reasoning meaningful.
+
+    Within a category, codes are drawn in proportion to how often Photon
+    actually emitted them during the harvest.
     """
     # 60% chance: draw from vendor weakness category; 40%: draw from weighted dist
-    if rng.random() < 0.60:
-        use_category = vendor_weakness
-    else:
-        use_category = category
+    use_category = vendor_weakness if rng.random() < 0.60 else category
 
-    codes = _CODES_BY_CATEGORY.get(use_category, [])
+    codes = _CODES_BY_CATEGORY.get(use_category)
     if not codes:
-        codes = _CODES_BY_CATEGORY.get("structural", ["IMF_CPL_ERROR"])
+        use_category = category if category in _CODES_BY_CATEGORY else next(iter(_CODES_BY_CATEGORY))
+        codes = _CODES_BY_CATEGORY[use_category]
 
-    return str(rng.choice(codes))
+    weights = np.array(_CODE_WEIGHTS_BY_CATEGORY[use_category], dtype=float)
+    return str(rng.choice(codes, p=weights / weights.sum()))
 
 
 class TitleFactory:
@@ -323,25 +332,29 @@ def generate_inspection_chain(
             # Sample error for this failure
             category = _weighted_category()
             error_code = _error_code_for_category(category, weakness)
-            severity_map = {
-                "structural": "blocking",
-                "audio": "blocking",
-                "essence": "blocking",
-                "subtitle": "blocking",
-                "integrity": "blocking",
-                "metadata": "cosmetic",
-                "advisory": "advisory",
-            }
-            severity = severity_map.get(category, "blocking")
+            # Severity comes from Photon's own error level for this code, not
+            # from a hand-written category→severity table.
+            severity = SEVERITY_BY_CODE.get(error_code, "blocking")
             messages = ERROR_MESSAGES.get(error_code, _DEFAULT_MESSAGES)
             error_message = str(rng.choice(messages))
-            result = "fail"
-            cost = float(rng.uniform(500, 15000) * (1.5 ** attempt))  # cost escalates
+
+            # An advisory finding does not reject a delivery. Photon raises
+            # plenty of WARNING-level errors on packages that are otherwise
+            # deliverable, so those land as 'warn' and neither cost remediation
+            # nor extend the redelivery chain. Only blocking findings fail.
+            if severity == "blocking":
+                result = "fail"
+                cost = float(rng.uniform(500, 15000) * (1.5 ** attempt))
+            else:
+                result = "warn"
+                cost = 0.0
+                resolved = True
         else:
-            # Pass or resolve
+            # Pass or resolve. Severity is blank rather than "blocking":
+            # a passing inspection has no severity, and defaulting it to
+            # blocking skews any severity aggregate over the corpus.
             error_code = ""
-            error_category_val = ""
-            severity = "blocking"
+            severity = ""
             error_message = ""
             category = ""
             result = "pass"
@@ -369,7 +382,9 @@ def generate_inspection_chain(
                 "result": result,
                 "error_code": error_code,
                 "error_category": category,
-                "error_severity": severity if result == "fail" else "blocking",
+                # Blank only on a clean pass — a 'warn' row keeps its advisory
+                # severity, which is what makes advisory-vs-blocking queryable.
+                "error_severity": severity,
                 "error_message": error_message,
                 "error_context": "{}",
                 "redelivery_attempt": attempt,
@@ -445,11 +460,11 @@ def generate_corpus(
 
     if start_date is None:
         # 3 years of history
-        end_date = datetime.now(timezone.utc)
+        end_date = datetime.now(UTC)
         start_date = end_date - timedelta(days=365 * 3)
 
     print(f"\n{'='*60}")
-    print(f"  Delivery-QC Synthetic Corpus Generator")
+    print("  Delivery-QC Synthetic Corpus Generator")
     print(f"{'='*60}")
     print(f"  Target rows : {target_rows:,}")
     print(f"  Titles      : {n_titles}")
@@ -513,8 +528,8 @@ def _print_summary(output_dir: Path) -> None:
     total_bytes = sum(f.stat().st_size for f in files)
     print(f"\n   Files   : {len(files)}")
     print(f"   Size    : {total_bytes / 1024 / 1024:.1f} MB")
-    print(f"\n   Load into local ClickHouse:")
-    print(f"   clickhouse-client --query \"INSERT INTO preflight.qc_inspections")
+    print("\n   Load into local ClickHouse:")
+    print("   clickhouse-client --query \"INSERT INTO preflight.qc_inspections")
     print(f"     SELECT * FROM file('{output_dir}/*.parquet', Parquet)\"")
 
 

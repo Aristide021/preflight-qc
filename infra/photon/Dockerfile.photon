@@ -49,6 +49,12 @@ RUN git clone https://github.com/Netflix/photon.git . \
 # Tests are skipped: we use Photon as a tool, not as a test subject.
 RUN ./gradlew --no-daemon jar getDependencies -x test
 
+# Compile our harvester against the freshly built Photon classes. It calls
+# IMPAnalyzer.analyzeDelivery directly to read structured ErrorObjects — the
+# CLI's prose output does not contain the ErrorCodes enum constants.
+COPY infra/photon/harvester/PhotonHarvester.java /harvester/
+RUN javac -cp "/build/build/libs/*" -d /harvester /harvester/PhotonHarvester.java
+
 # ── Stage 2: Runtime image ───────────────────────────────────────────────────
 FROM eclipse-temurin:17-jre
 
@@ -61,6 +67,14 @@ WORKDIR /photon
 
 # The whole libs/ directory is the classpath (see build notes above).
 COPY --from=builder /build/build/libs/ ./libs/
+COPY --from=builder /harvester/ ./harvester/
+
+# Photon ships ~50 real IMF test packages (plugfest deliveries, deliberately
+# broken variants, Application 2E/5, IAB, PHDR, HT profiles). These are the
+# harvest corpus. The imf-plugfest S3 bucket referenced in Photon's docs
+# returns 403 on anonymous listing, so these bundled vectors replace it and
+# make the harvest fully reproducible with no network dependency.
+COPY --from=builder /build/src/test/resources/TestIMP/ ./test_vectors/
 
 # Photon's own Dockerfile exposes four CLI entry points; IMPAnalyzer is the
 # delivery-level validator the build plan calls for. The others are kept
@@ -69,6 +83,12 @@ RUN for tool in IMPAnalyzer IMPFixer IMFTrackFileReader IMFTrackFileCPLBuilder; 
         printf '#!/bin/sh\nexec java -cp "/photon/libs/*" com.netflix.imflibrary.app.%s "$@"\n' "$tool" \
             > "/usr/local/bin/$tool" && chmod +x "/usr/local/bin/$tool"; \
     done
+
+# PhotonHarvester emits JSONL on stdout; slf4j-simple logs to stderr, so the
+# two streams stay separable (`docker run ... 2>/dev/null` gives clean JSONL).
+RUN printf '#!/bin/sh\nexec java -cp "/photon/libs/*:/photon/harvester" PhotonHarvester "$@"\n' \
+        > /usr/local/bin/PhotonHarvester \
+    && chmod +x /usr/local/bin/PhotonHarvester
 
 # Default: analyze a package mounted at /imf
 ENTRYPOINT ["/usr/local/bin/IMPAnalyzer"]
