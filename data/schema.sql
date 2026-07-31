@@ -70,7 +70,13 @@ CREATE TABLE IF NOT EXISTS qc_inspections
                                          COMMENT 'IMF error code (e.g. IMF_CPL_ERROR)',
     error_category       LowCardinality(String)
                                          COMMENT 'Error category: structural | essence | audio | subtitle | metadata | integrity',
-    error_severity       Enum8('blocking'=1, 'cosmetic'=2, 'advisory'=3)
+    -- '' = 0 is the "no error" case: a row whose result is 'pass' carries no
+    -- severity. Without an empty member the Parquet load rejects every passing
+    -- row, and mapping passes onto 'blocking' would inflate every blocking
+    -- count in the corpus. 'cosmetic' is never emitted by the generator —
+    -- Photon reports FATAL / NON_FATAL / WARNING only — and is reserved for
+    -- the Spec-Reader agent's spec-derived classification.
+    error_severity       Enum8('' = 0, 'blocking'=1, 'cosmetic'=2, 'advisory'=3)
                                          COMMENT 'Impact level per platform spec',
     error_message        String          COMMENT 'Human-readable error description',
     error_context        String          COMMENT 'JSON: additional context (file path, timecode, track ID, etc.)',

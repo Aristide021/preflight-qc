@@ -58,15 +58,12 @@ SELECT
     round(countIf(result = 'fail') / count(), 3)               AS historical_fail_rate,
     round(avg(redelivery_attempt), 1)                          AS avg_redelivery_attempts,
     round(sum(remediation_cost_usd), 0)                        AS total_cost_to_date_usd,
-    -- Top 3 most common error codes (packed into a string for agent consumption)
+    -- Top 3 most common error codes (packed into a string for agent consumption).
+    -- topKIf is the idiomatic form here: the previous version nested countIf
+    -- inside groupArray, which ClickHouse rejects outright with ILLEGAL_AGGREGATION
+    -- (an aggregate cannot be evaluated inside another aggregate's argument).
     arrayStringConcat(
-        arraySlice(
-            arraySort(
-                x -> -x.2,
-                groupArray((error_code, countIf(result = 'fail')))
-            ),
-            1, 3
-        ),
+        topKIf(3)(error_code, result = 'fail' AND error_code != ''),
         ', '
     ) AS top_3_failure_codes
 FROM qc_inspections

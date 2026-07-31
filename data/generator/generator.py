@@ -504,7 +504,11 @@ def generate_corpus(
             rows_written += remaining
             pbar.update(remaining)
 
-    print(f"\n✅ Generated {rows_written:,} rows across {chunk_num + 1} Parquet files")
+    # Count what was actually written. chunk_num is incremented only by the main
+    # loop, so `chunk_num + 1` over-reported by one whenever the target divided
+    # evenly into chunk_size and the trailing partial-chunk write was skipped.
+    files_written = len(list(output_dir.glob("*.parquet")))
+    print(f"\n✅ Generated {rows_written:,} rows across {files_written} Parquet files")
     print(f"   Output: {output_dir}")
     _print_summary(output_dir)
 
