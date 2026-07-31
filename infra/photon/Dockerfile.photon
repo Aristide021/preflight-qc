@@ -9,40 +9,66 @@
 #
 # Usage:
 #   docker build -t photon-validator -f infra/photon/Dockerfile.photon .
-#   docker run --rm -v /path/to/imf:/imf photon-validator /imf/MyPackage
+#   docker run --rm -v /path/to/imf:/imf:ro photon-validator /imf
 #
 # Why Docker (not raw JDK): avoids JDK toolchain setup; reproducible
 # across environments; aligns with the build plan's "avoid JDK setup" guidance.
+#
+# Build notes (learned the hard way — do not "simplify" these away):
+#   - Photon builds with GRADLE, not Maven. There is no pom.xml.
+#   - The default branch is `master`, not `main`.
+#   - `getDependencies` copies the runtime classpath into build/libs/. Photon
+#     does NOT produce a fat jar, so the runtime stage needs the whole directory
+#     on the classpath, not a single jar.
+#   - The nebula.release plugin requires BOTH the git binary and a real .git
+#     directory at the project root, or configuration fails with
+#     "Task with name 'postRelease' not found".
+#   - eclipse-temurin -jre-alpine tags are published amd64-only; the Ubuntu
+#     -jre tags carry arm64, so this builds natively on Apple Silicon.
 
 # ── Stage 1: Build Photon from source ────────────────────────────────────────
-FROM maven:3.9-eclipse-temurin-17 AS builder
+FROM eclipse-temurin:17-jdk AS builder
 
 WORKDIR /build
 
-# Clone at a pinned commit for reproducibility.
-# Update this SHA when pulling a newer Photon release.
-RUN apt-get update && apt-get install -y git --no-install-recommends \
-    && git clone https://github.com/Netflix/photon.git . \
-    && git checkout main
+# Pin to a release tag for reproducibility. Override at build time with:
+#   docker build --build-arg PHOTON_REF=v5.0.0 ...
+ARG PHOTON_REF=v5.0.1
 
-# Build, skip tests (we're using it as a tool, not running its test suite)
-RUN mvn clean package -DskipTests -q
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 
-# ── Stage 2: Minimal runtime image ───────────────────────────────────────────
-# NOTE: the -jre-alpine tags are published amd64-only. Use the Ubuntu-based
-# -jre tag so this builds natively on Apple Silicon (arm64) as well as x86.
+# Full clone (not --depth 1): nebula.release reads tag history to derive the
+# project version, and a shallow clone leaves it unable to describe HEAD.
+RUN git clone https://github.com/Netflix/photon.git . \
+    && git checkout "${PHOTON_REF}" \
+    && git config --global --add safe.directory /build
+
+# `jar` + `getDependencies` is the minimum that produces a runnable classpath.
+# Tests are skipped: we use Photon as a tool, not as a test subject.
+RUN ./gradlew --no-daemon jar getDependencies -x test
+
+# ── Stage 2: Runtime image ───────────────────────────────────────────────────
 FROM eclipse-temurin:17-jre
 
 LABEL org.opencontainers.image.title="photon-imf-validator"
 LABEL org.opencontainers.image.description="Netflix Photon IMF validator — offline oracle for error taxonomy harvest"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.source="https://github.com/Netflix/photon"
 
 WORKDIR /photon
 
-# Copy the built JAR (Photon builds to a fat JAR via Maven shade plugin)
-COPY --from=builder /build/target/photon-*.jar ./photon.jar
+# The whole libs/ directory is the classpath (see build notes above).
+COPY --from=builder /build/build/libs/ ./libs/
 
-# Default entrypoint: pass the IMF package path as CMD
-# e.g. docker run photon-validator /imf/MyPackage
-ENTRYPOINT ["java", "-jar", "/photon/photon.jar"]
-CMD ["--help"]
+# Photon's own Dockerfile exposes four CLI entry points; IMPAnalyzer is the
+# delivery-level validator the build plan calls for. The others are kept
+# available for later phases (e.g. IMPFixer in the Action agent).
+RUN for tool in IMPAnalyzer IMPFixer IMFTrackFileReader IMFTrackFileCPLBuilder; do \
+        printf '#!/bin/sh\nexec java -cp "/photon/libs/*" com.netflix.imflibrary.app.%s "$@"\n' "$tool" \
+            > "/usr/local/bin/$tool" && chmod +x "/usr/local/bin/$tool"; \
+    done
+
+# Default: analyze a package mounted at /imf
+ENTRYPOINT ["/usr/local/bin/IMPAnalyzer"]
