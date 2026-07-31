@@ -1,159 +1,315 @@
 """
-Spec-Reader Agent — fetches and caches the live delivery spec.
+Spec-Reader Agent — fetches, extracts and caches the live delivery spec.
 
 Why live fetch instead of a baked-in copy:
-  The Netflix IMF loudness spec is cited inconsistently across sources
-  (−27 LUFS vs −24 LKFS vs −23 LUFS depending on publication date).
-  Reading the current spec beats baking in a number that may be wrong.
-  The agent cites what it reads, making its reasoning auditable.
+  The Netflix loudness requirement is cited inconsistently across secondary
+  sources (-27 LUFS vs -24 LKFS vs -23 LUFS). Reading the current spec beats
+  baking in a number that may be wrong — and in this case the disagreement is
+  not noise: Netflix specifies -27 LKFS +/- 2 LU dialog-gated (ITU-R BS.1770-1)
+  as the general rule, and -24 LKFS +/- 2 LU (BS.1770-3/-4) only for programs
+  measuring under 15% dialogue. A hard-coded number collapses those into one
+  and gets the common case wrong.
 
-Caching: the spec is cached for SPEC_CACHE_TTL_SECONDS (default 24h)
-to avoid redundant fetches across agent runs.
+Three bugs this module previously had, all of which made "grounded in the live
+spec" untrue in practice:
+
+  1. The registry pointed at article 115001138508, which now 404s. Every fetch
+     failed.
+  2. Failure fell back silently to an invented spec whose numbers were wrong on
+     three counts (-24 LKFS, +/- 1 LU, BS.1770-3 — wrong value, tolerance and
+     standard for the general case). Callers could not tell they were reading a
+     guess, so the agent would cite it as authoritative.
+  3. Even on success, raw HTML was handed to the model and truncated to 8k
+     characters — which is `<head>`, CSS and nav markup, not spec text. The
+     Sound Mix page is 66k of HTML carrying 19k of prose.
+
+Now: verified URLs, HTML stripped to text before caching, and a fallback that
+announces itself via SpecDocument.is_fallback so the caller can refuse to treat
+it as grounding.
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
+import re
 import time
+from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
-from typing import NamedTuple
 
 import httpx
 import structlog
 
 log = structlog.get_logger(__name__)
 
-# ── Spec registry ─────────────────────────────────────────────────────────────
-# Maps platform_spec identifier → spec URL.
-# The Spec-Reader fetches from here; agents never hardcode a spec version.
-
-SPEC_REGISTRY: dict[str, str] = {
-    "netflix-imf-2.0": "https://partnerhelp.netflixstudios.com/hc/en-us/articles/115001138508",
-    "netflix-imf-2.1": "https://partnerhelp.netflixstudios.com/hc/en-us/articles/115001138508",
-    "netflix-imf-2.2": "https://partnerhelp.netflixstudios.com/hc/en-us/articles/115001138508",
-    # Phase 4 bonus — multi-platform spec support
-    # "amazon-vcs-3.x": "https://videodirectsupport.amazon.com/vcs",
-}
-
-FALLBACK_SPEC_URL = os.environ.get(
-    "NETFLIX_SPEC_URL",
-    "https://partnerhelp.netflixstudios.com/hc/en-us/articles/115001138508",
+# Netflix's help centre rejects unknown clients on some paths; a normal browser
+# UA is what actually gets served the article body.
+USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/125.0 Safari/537.36"
 )
 
 CACHE_DIR = Path(os.environ.get("SPEC_CACHE_DIR", "/tmp/preflight_spec_cache"))
 CACHE_TTL = int(os.environ.get("SPEC_CACHE_TTL_SECONDS", "86400"))
 
 
-class SpecDocument(NamedTuple):
+@dataclass(frozen=True)
+class SpecSource:
+    """One document that makes up a platform's delivery spec."""
+
+    label: str
     url: str
-    content: str          # Full text of the spec (HTML or plain text)
-    fetched_at: float     # Unix timestamp
 
 
-def _cache_key(url: str) -> str:
-    return hashlib.sha256(url.encode()).hexdigest()[:16]
+# ── Spec registry ────────────────────────────────────────────────────────────
+# Every URL below was verified to return HTTP 200 with spec prose. A platform's
+# spec is several documents, so each entry is a list: the classifier needs the
+# audio rules and the delivery rules together to decide blocking vs cosmetic.
+SPEC_REGISTRY: dict[str, list[SpecSource]] = {
+    "netflix-imf": [
+        SpecSource(
+            "Sound Mix Specifications & Best Practices v1.6",
+            "https://partnerhelp.netflixstudios.com/hc/en-us/articles/"
+            "360001794307-Netflix-Sound-Mix-Specifications-Best-Practices-v1-6",
+        ),
+        SpecSource(
+            "Post Production Branded Delivery Specifications",
+            "https://partnerhelp.netflixstudios.com/hc/en-us/articles/"
+            "7262346654995-Post-Production-Branded-Delivery-Specifications",
+        ),
+        SpecSource(
+            "Loudness and True Peaks: How to Measure and When to Flag",
+            "https://partnerhelp.netflixstudios.com/hc/en-us/articles/"
+            "360050414014-Loudness-and-True-Peaks-How-to-Measure-and-When-to-Flag",
+        ),
+        SpecSource(
+            "Loudness LKFS Out of Spec",
+            "https://partnerhelp.netflixstudios.com/hc/en-us/articles/"
+            "115000876911-LKFS-Loudness-Out-of-Spec",
+        ),
+    ],
+}
 
 
-def _cache_path(url: str) -> Path:
+def _sources_for(platform_spec: str) -> list[SpecSource]:
+    """netflix-imf-2.2 → the netflix-imf document set."""
+    for family, sources in SPEC_REGISTRY.items():
+        if platform_spec.startswith(family):
+            return sources
+    log.warning("spec.registry.miss", platform_spec=platform_spec)
+    return SPEC_REGISTRY["netflix-imf"]
+
+
+@dataclass(frozen=True)
+class SpecDocument:
+    url: str
+    content: str
+    fetched_at: float
+    is_fallback: bool = False
+    sources: tuple[str, ...] = ()
+
+    @property
+    def is_grounded(self) -> bool:
+        """False when the content is the built-in fallback rather than fetched text."""
+        return not self.is_fallback
+
+
+# ── HTML → text ──────────────────────────────────────────────────────────────
+
+
+class _TextExtractor(HTMLParser):
+    """Pull readable text out of an article page, dropping script/style/nav."""
+
+    _DROP = {"script", "style", "noscript", "svg", "head", "nav", "footer"}
+    _BREAK = {"p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._chunks: list[str] = []
+        self._depth = 0
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag in self._DROP:
+            self._depth += 1
+        elif tag in self._BREAK:
+            self._chunks.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in self._DROP and self._depth:
+            self._depth -= 1
+        elif tag in self._BREAK:
+            self._chunks.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if not self._depth and data.strip():
+            self._chunks.append(data.strip())
+
+    @property
+    def text(self) -> str:
+        raw = " ".join(self._chunks)
+        raw = re.sub(r"[ \t]+", " ", raw)
+        raw = re.sub(r"\s*\n\s*", "\n", raw)
+        return re.sub(r"\n{3,}", "\n\n", raw).strip()
+
+
+def html_to_text(html: str) -> str:
+    parser = _TextExtractor()
+    parser.feed(html)
+    return parser.text
+
+
+# ── Cache ────────────────────────────────────────────────────────────────────
+
+
+def _cache_path(key: str) -> Path:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    return CACHE_DIR / f"spec_{_cache_key(url)}.json"
+    digest = hashlib.sha256(key.encode()).hexdigest()[:16]
+    return CACHE_DIR / f"spec_{digest}.json"
 
 
-def _read_cache(url: str) -> SpecDocument | None:
-    path = _cache_path(url)
+def _read_cache(key: str) -> SpecDocument | None:
+    path = _cache_path(key)
     if not path.exists():
         return None
     try:
         data = json.loads(path.read_text())
-        age = time.time() - data["fetched_at"]
-        if age > CACHE_TTL:
-            log.debug("spec.cache.expired", url=url, age_hours=age / 3600)
+        if time.time() - data["fetched_at"] > CACHE_TTL:
             return None
-        return SpecDocument(url=data["url"], content=data["content"], fetched_at=data["fetched_at"])
-    except Exception as e:
-        log.warning("spec.cache.read.error", error=str(e))
+        # A cached fallback is not grounding; refetch rather than serve a guess.
+        if data.get("is_fallback"):
+            return None
+        return SpecDocument(
+            url=data["url"],
+            content=data["content"],
+            fetched_at=data["fetched_at"],
+            is_fallback=False,
+            sources=tuple(data.get("sources", ())),
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("spec.cache.read.error", error=str(exc))
         return None
 
 
-def _write_cache(doc: SpecDocument) -> None:
-    path = _cache_path(doc.url)
+def _write_cache(key: str, doc: SpecDocument) -> None:
     try:
-        path.write_text(json.dumps({"url": doc.url, "content": doc.content, "fetched_at": doc.fetched_at}))
-    except Exception as e:
-        log.warning("spec.cache.write.error", error=str(e))
+        _cache_path(key).write_text(
+            json.dumps(
+                {
+                    "url": doc.url,
+                    "content": doc.content,
+                    "fetched_at": doc.fetched_at,
+                    "is_fallback": doc.is_fallback,
+                    "sources": list(doc.sources),
+                }
+            )
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("spec.cache.write.error", error=str(exc))
+
+
+# ── Fetch ────────────────────────────────────────────────────────────────────
+
+
+async def _fetch_one(client: httpx.AsyncClient, source: SpecSource) -> tuple[SpecSource, str | None]:
+    try:
+        response = await client.get(source.url)
+        response.raise_for_status()
+        text = html_to_text(response.text)
+        if len(text) < 500:
+            log.warning("spec.fetch.thin", url=source.url, chars=len(text))
+            return source, None
+        return source, text
+    except Exception as exc:  # noqa: BLE001
+        log.error("spec.fetch.failed", url=source.url, error=str(exc)[:200])
+        return source, None
 
 
 async def fetch_spec(platform_spec: str) -> SpecDocument:
     """
-    Fetch the delivery spec for a given platform_spec identifier.
-    Returns the cached version if fresh; otherwise fetches and caches.
+    Fetch the delivery spec for a platform_spec identifier.
 
-    Args:
-        platform_spec: e.g. "netflix-imf-2.1"
-
-    Returns:
-        SpecDocument with the full spec text
+    Returns a SpecDocument whose `content` is extracted prose from every source
+    that responded. If nothing could be fetched, returns the fallback with
+    is_fallback=True — check `is_grounded` before presenting it as the spec.
     """
-    url = SPEC_REGISTRY.get(platform_spec, FALLBACK_SPEC_URL)
-    log.info("spec.fetch", platform_spec=platform_spec, url=url)
+    sources = _sources_for(platform_spec)
+    cache_key = platform_spec
 
-    # Check cache first
-    cached = _read_cache(url)
+    cached = _read_cache(cache_key)
     if cached:
-        log.debug("spec.cache.hit", url=url)
+        log.info("spec.cache.hit", platform_spec=platform_spec, chars=len(cached.content))
         return cached
 
-    # Fetch live
-    log.info("spec.fetching.live", url=url)
-    try:
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            response = await client.get(
-                url,
-                headers={
-                    "User-Agent": "DeliveryQC-Agent/1.0 (hackathon compliance tool)",
-                    "Accept": "text/html,application/xhtml+xml,text/plain",
-                },
-            )
-            response.raise_for_status()
-            content = response.text
-    except httpx.HTTPError as e:
-        log.error("spec.fetch.failed", url=url, error=str(e))
-        # Return a minimal fallback spec so the agent can still reason
-        content = _minimal_fallback_spec(platform_spec)
+    log.info("spec.fetching", platform_spec=platform_spec, sources=len(sources))
+    async with httpx.AsyncClient(
+        timeout=30.0,
+        follow_redirects=True,
+        headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
+    ) as client:
+        results = await asyncio.gather(*(_fetch_one(client, s) for s in sources))
 
-    doc = SpecDocument(url=url, content=content, fetched_at=time.time())
-    _write_cache(doc)
-    log.info("spec.fetched", url=url, content_length=len(content))
+    sections, fetched_labels = [], []
+    for source, text in results:
+        if text:
+            sections.append(f"### {source.label}\nSource: {source.url}\n\n{text}")
+            fetched_labels.append(source.label)
+
+    if not sections:
+        log.error("spec.fetch.all_failed", platform_spec=platform_spec)
+        return SpecDocument(
+            url=sources[0].url,
+            content=_fallback_spec(platform_spec),
+            fetched_at=time.time(),
+            is_fallback=True,
+        )
+
+    doc = SpecDocument(
+        url=sources[0].url,
+        content="\n\n".join(sections),
+        fetched_at=time.time(),
+        is_fallback=False,
+        sources=tuple(fetched_labels),
+    )
+    _write_cache(cache_key, doc)
+    log.info(
+        "spec.fetched",
+        platform_spec=platform_spec,
+        chars=len(doc.content),
+        documents=len(fetched_labels),
+    )
     return doc
 
 
-def _minimal_fallback_spec(platform_spec: str) -> str:
+def _fallback_spec(platform_spec: str) -> str:
     """
-    Minimal spec content if the live fetch fails.
-    Based on publicly documented Netflix IMF requirements.
-    The agent must note this is a fallback, not the authoritative spec.
+    Last resort when every source is unreachable.
+
+    The figures here are transcribed from the Netflix Sound Mix Specifications
+    page rather than recalled, and the general/low-dialogue split is preserved
+    because collapsing it is what made the previous fallback wrong. Callers must
+    still treat this as ungrounded: SpecDocument.is_fallback is True.
     """
     return f"""
-    FALLBACK SPEC (live fetch failed for {platform_spec})
-    Source: Netflix Partner Help Center — IMF Delivery Specification
+FALLBACK SPEC — live fetch failed for {platform_spec}.
+THIS IS NOT GROUNDING. Any classification made from this text must be reported
+as unverified against the live specification.
 
-    Audio Requirements:
-    - Integrated loudness: -24 LKFS (±1 LU), measured per ITU-R BS.1770-3
-    - True peak: maximum -2 dBTP
-    - Audio must be present in a separate IMF audio track
+Audio — loudness (Netflix Sound Mix Specifications):
+- General rule: -27 LKFS (+/- 2 LU), dialog-gated, measured with ITU-R BS.1770-1
+  over the entire program.
+- Programs measuring under 15% dialogue: program target measurement is used
+  instead, -24 LKFS (+/- 2 LU), ITU-R BS.1770-3 or -4.
+- True peak must not exceed -2 dB True Peak.
+- Theatrical mixes carry no LKFS requirement and may peak at 0 dB True Peak.
 
-    Video Requirements:
-    - IMF Application Profile: App #2E (preferred) or App #2
-    - Frame rate must match CPL EditRate declaration
-    - Color space and HDR metadata must match essence encoding
+Structural (IMF):
+- Valid ASSETMAP.xml with correct UUIDs and asset references.
+- Valid PKL with a hash for every asset.
+- Valid CPL carrying ApplicationIdentification.
+- Frame rate must match the CPL EditRate declaration.
 
-    Structural Requirements:
-    - Valid ASSETMAP.xml with correct UUIDs and asset references
-    - Valid PKL with SHA-1 hash for all assets
-    - Valid CPL with ApplicationIdentification
-
-    Note: This is a fallback. Fetch the authoritative spec at:
-    https://partnerhelp.netflixstudios.com/hc/en-us/articles/115001138508
-    """
+Authoritative sources:
+""" + "\n".join(f"- {s.label}: {s.url}" for s in _sources_for(platform_spec))

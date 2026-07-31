@@ -13,19 +13,6 @@
   "submitted_at": "2026-07-30T14:00:00Z",
   "errors": [
     {
-      "error_code": "IMF_AUDIO_LOUDNESS_ERROR",
-      "error_category": "audio",
-      "error_message": "Integrated loudness -31.2 LKFS exceeds maximum -24.0 LKFS. True peak +0.4 dBTP above maximum -2.0 dBTP.",
-      "error_context": {
-        "track": "AUDIO_TRACK_01",
-        "measured_loudness": -31.2,
-        "spec_max": -24.0,
-        "measured_true_peak": 0.4,
-        "spec_max_true_peak": -2.0
-      },
-      "stage": "auto-qc"
-    },
-    {
       "error_code": "IMF_CPL_ERROR",
       "error_category": "structural",
       "error_message": "Missing required ApplicationIdentification element in CPL. IMF Application Profile cannot be determined.",
@@ -37,7 +24,31 @@
       "stage": "photon"
     },
     {
-      "error_code": "IMF_DOLBY_VISION_ERROR",
+      "error_code": "IMF_CORE_CONSTRAINTS_ERROR",
+      "error_category": "structural",
+      "error_message": "The Application Identification(s) contained in this CPL assume Core Constraints Namespace http://www.smpte-ra.org/schemas/2067-2/2016, but http://www.smpte-ra.org/schemas/2067-2/2013 is used.",
+      "error_context": {
+        "file": "CPL_550e8400.xml",
+        "expected_namespace": "http://www.smpte-ra.org/schemas/2067-2/2016",
+        "found_namespace": "http://www.smpte-ra.org/schemas/2067-2/2013"
+      },
+      "stage": "photon"
+    },
+    {
+      "error_code": "AUDIO_LOUDNESS_OUT_OF_SPEC",
+      "error_category": "audio",
+      "error_message": "Integrated dialogue loudness measured -31.2 LKFS, outside the delivery target band. True peak +0.4 dBTP exceeds the -2 dBTP ceiling.",
+      "error_context": {
+        "track": "AUDIO_TRACK_01",
+        "measured_loudness_lkfs": -31.2,
+        "measurement_standard": "ITU-R BS.1770-1",
+        "gating": "dialog-gated",
+        "measured_true_peak_dbtp": 0.4
+      },
+      "stage": "audio-qc"
+    },
+    {
+      "error_code": "DOLBY_VISION_RPU_MISSING",
       "error_category": "metadata",
       "error_message": "Dolby Vision RPU track missing from video essence. DolbyVision declared in CPL but no RPU found.",
       "error_context": {
@@ -45,8 +56,8 @@
         "declared_hdr": "DolbyVision",
         "found_hdr": "SDR"
       },
-      "stage": "auto-qc"
+      "stage": "hdr-qc"
     }
   ],
-  "raw_output": "Photon IMF Validator v1.x\\n[ERROR] IMF_CPL_ERROR: Missing ApplicationIdentification\\n[ERROR] IMF_AUDIO_LOUDNESS_ERROR: -31.2 LKFS (max -24.0)\\n[ERROR] IMF_DOLBY_VISION_ERROR: RPU track not found"
+  "raw_output": "-- stage: photon (Netflix Photon IMPAnalyzer) --\nERROR IMF_CPL_ERROR: Missing ApplicationIdentification\nWARNING IMF_CORE_CONSTRAINTS_ERROR: Core Constraints namespace 2013 used where 2016 assumed\n\n-- stage: audio-qc (loudness analyser, not Photon) --\nFAIL AUDIO_LOUDNESS_OUT_OF_SPEC: -31.2 LKFS dialog-gated (BS.1770-1); true peak +0.4 dBTP\n\n-- stage: hdr-qc (Dolby metadata validator, not Photon) --\nFAIL DOLBY_VISION_RPU_MISSING: RPU track not found in video essence\n"
 }

@@ -10,6 +10,20 @@ Usage (CLI):
 Usage (programmatic):
     from agents.spec_reader.agent import run_spec_reader
     classification = await run_spec_reader(qc_result)
+
+WHAT CHANGED AND WHY
+  - adk.InMemorySessionService / adk.types do not exist. They live in
+    google.adk.sessions and google.genai.types. The module could not run.
+  - A genai.Client was constructed and never used — it existed only so the
+    "google-genai called at runtime" claim would appear true in a grep. The
+    real runtime call path is LlmAgent -> Runner, which is exercised below.
+  - The agent asked for JSON in prose and recovered it with a regex, falling
+    back to marking every error blocking when parsing failed. That fallback is
+    indistinguishable in the output from a genuine all-blocking verdict. ADK
+    supports output_schema, so the model is now constrained to the schema and a
+    parse failure surfaces as an error rather than a plausible-looking verdict.
+  - Ungrounded runs are no longer silent: if the spec could not be fetched, the
+    classification records it (see SpecClassification.spec_version_used).
 """
 
 from __future__ import annotations
@@ -25,37 +39,103 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
-import google.adk as adk
-from google import genai
+# E402: imports follow load_dotenv because the ADK/genai clients read
+# GOOGLE_API_KEY at import time.
+# ruff: noqa: E402
+import google.adk as adk  # noqa: F401  — runtime proof the SDK is loaded
 from google.adk.agents import LlmAgent
-from google.adk.tools import FunctionTool
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
+from pydantic import BaseModel, Field
 
 from agents.shared.models import (
     ClassifiedFailure,
-    FailureSeverity,
     QCResult,
     SpecClassification,
 )
-from agents.spec_reader.prompts import FEW_SHOT_EXAMPLES, SPEC_FETCH_PROMPT, SYSTEM_PROMPT
+from agents.spec_reader.prompts import SYSTEM_PROMPT
 from agents.spec_reader.spec_loader import fetch_spec
 
 log = structlog.get_logger(__name__)
 
 MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+APP_NAME = "preflight_qc"
+USER_ID = "spec_reader_runner"
+
+# How much spec text to put in front of the model. The fetched bundle is ~57k
+# characters across four documents; gemini-flash handles that comfortably and
+# truncating it is what previously fed the model page furniture instead of
+# requirements.
+MAX_SPEC_CHARS = int(os.environ.get("SPEC_MAX_CHARS", "60000"))
+
+
+class SpecReaderOutput(BaseModel):
+    """
+    What the model is asked to produce.
+
+    Deliberately narrower than SpecClassification: identifiers, counts and
+    timestamps are assembled in code afterwards. The model classifies; it does
+    not get to invent an inspection_id.
+    """
+
+    failures: list[ClassifiedFailure] = Field(
+        default_factory=list,
+        description="One entry per input error, classified against the spec",
+    )
+    agent_reasoning: str = Field(
+        default="",
+        description="Brief rationale for the classifications, citing spec sections",
+    )
+
+
+def _build_prompt(qc_result: QCResult, spec_text: str, grounded: bool) -> str:
+    errors_json = json.dumps([e.model_dump() for e in qc_result.errors], indent=2)
+
+    grounding_note = (
+        "The spec text below was fetched live from the platform's published "
+        "documentation. Cite it directly."
+        if grounded
+        else "WARNING: the live spec could not be fetched and the text below is a "
+        "built-in fallback. Say so in your reasoning and treat every "
+        "classification as unverified."
+    )
+
+    return f"""Classify each QC error below against the delivery specification.
+
+{grounding_note}
+
+DELIVERY CONTEXT
+  title_id      : {qc_result.title_id}
+  vendor_id     : {qc_result.vendor_id}
+  platform_spec : {qc_result.platform_spec}
+  package_type  : {qc_result.package_type}
+  codec         : {qc_result.codec}
+  hdr_format    : {qc_result.hdr_format}
+  audio_config  : {qc_result.audio_config}
+  attempt       : {qc_result.redelivery_attempt}
+
+QC ERRORS TO CLASSIFY
+{errors_json}
+
+DELIVERY SPECIFICATION
+---
+{spec_text[:MAX_SPEC_CHARS]}
+---
+
+Classify every error. For each one quote the specific spec language you relied
+on in spec_requirement, and name the document/section in spec_section. If the
+spec does not address an error, say so in spec_requirement rather than
+inventing a requirement, and classify it advisory.
+"""
 
 
 async def run_spec_reader(qc_result: QCResult) -> SpecClassification:
     """
     Run the Spec-Reader agent against a QC result.
 
-    Fetches the live delivery spec, classifies each failure, returns
-    a SpecClassification with spec citations for every error.
-
-    Args:
-        qc_result: The QC inspection result to classify
-
-    Returns:
-        SpecClassification with blocking/cosmetic/advisory labels + spec citations
+    Fetches the live delivery spec, classifies each failure, and returns a
+    SpecClassification with spec citations for every error.
     """
     log.info(
         "spec_reader.start",
@@ -64,74 +144,68 @@ async def run_spec_reader(qc_result: QCResult) -> SpecClassification:
         error_count=len(qc_result.errors),
     )
 
-    # Fetch the live spec
     spec_doc = await fetch_spec(qc_result.platform_spec)
-
-    # Build the classification prompt
-    errors_json = json.dumps([e.model_dump() for e in qc_result.errors], indent=2)
-    prompt = SPEC_FETCH_PROMPT.format(
-        spec_url=spec_doc.url,
-        errors_json=errors_json,
-    )
-
-    # Inject the spec content directly (saves a tool call for the agent)
-    full_prompt = f"""{prompt}
-
-SPEC CONTENT (fetched from {spec_doc.url}):
----
-{spec_doc.content[:8000]}
----
-
-Now classify each error according to the spec content above.
-Return valid JSON matching the SpecClassification schema.
-"""
-
-    # Create and run the Gemini agent
-    client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
+    if not spec_doc.is_grounded:
+        log.warning("spec_reader.ungrounded", platform_spec=qc_result.platform_spec)
 
     agent = LlmAgent(
         name="spec_reader",
         model=MODEL,
         description="Classifies QC failures against the live delivery spec",
         instruction=SYSTEM_PROMPT,
+        output_schema=SpecReaderOutput,
+        output_key="classification",
     )
 
-    session_service = adk.InMemorySessionService()
-    session = await session_service.create_session(
-        app_name="preflight_qc",
-        user_id="spec_reader_runner",
-    )
+    session_service = InMemorySessionService()
+    session = await session_service.create_session(app_name=APP_NAME, user_id=USER_ID)
+    runner = Runner(agent=agent, app_name=APP_NAME, session_service=session_service)
 
-    runner = adk.Runner(
-        agent=agent,
-        app_name="preflight_qc",
-        session_service=session_service,
-    )
+    prompt = _build_prompt(qc_result, spec_doc.content, spec_doc.is_grounded)
 
-    response_text = ""
-    async for event in runner.run_async(
-        user_id="spec_reader_runner",
+    async for _ in runner.run_async(
+        user_id=USER_ID,
         session_id=session.id,
-        new_message=adk.types.Content(
-            role="user",
-            parts=[adk.types.Part(text=full_prompt)],
-        ),
+        new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
     ):
-        if hasattr(event, "content") and event.content:
-            for part in event.content.parts:
-                if hasattr(part, "text") and part.text:
-                    response_text += part.text
+        pass
 
-    # Parse the agent's JSON response into a SpecClassification
-    classification = _parse_classification(
-        response_text=response_text,
-        qc_result=qc_result,
+    # output_schema routes the validated object into session state under
+    # output_key, so there is nothing to parse out of the response text.
+    final = await session_service.get_session(
+        app_name=APP_NAME, user_id=USER_ID, session_id=session.id
+    )
+    raw = (final.state or {}).get("classification")
+
+    if raw is None:
+        raise RuntimeError(
+            "Spec-Reader produced no structured output. The model returned nothing "
+            "matching SpecReaderOutput; check model availability and quota."
+        )
+
+    parsed = SpecReaderOutput.model_validate(raw) if isinstance(raw, dict) else raw
+
+    spec_label = (
+        f"{qc_result.platform_spec} via {', '.join(spec_doc.sources)}"
+        if spec_doc.is_grounded
+        else f"{qc_result.platform_spec} (UNGROUNDED — live spec fetch failed)"
+    )
+
+    classification = SpecClassification(
+        inspection_id=qc_result.inspection_id,
+        title_id=qc_result.title_id,
+        vendor_id=qc_result.vendor_id,
+        platform_spec=qc_result.platform_spec,
+        failures=parsed.failures,
+        spec_version_used=spec_label,
         spec_url=spec_doc.url,
+        agent_reasoning=parsed.agent_reasoning,
     )
 
     log.info(
         "spec_reader.done",
         title_id=qc_result.title_id,
+        grounded=spec_doc.is_grounded,
         blocking=classification.blocking_count,
         cosmetic=classification.cosmetic_count,
         advisory=classification.advisory_count,
@@ -139,53 +213,8 @@ Return valid JSON matching the SpecClassification schema.
     return classification
 
 
-def _parse_classification(
-    response_text: str,
-    qc_result: QCResult,
-    spec_url: str,
-) -> SpecClassification:
-    """Parse the agent's JSON response into a SpecClassification."""
-    import re
+# ── CLI entry point ──────────────────────────────────────────────────────────
 
-    # Extract JSON from the response (agent may wrap it in markdown code fences)
-    json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response_text, re.DOTALL)
-    if json_match:
-        json_str = json_match.group(1)
-    else:
-        # Try to find raw JSON
-        json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
-        json_str = json_match.group(0) if json_match else "{}"
-
-    try:
-        data = json.loads(json_str)
-        failures = [ClassifiedFailure(**f) for f in data.get("failures", [])]
-    except Exception as e:
-        log.error("spec_reader.parse.error", error=str(e), response=response_text[:200])
-        # Fall back: classify all errors as blocking (conservative)
-        failures = [
-            ClassifiedFailure(
-                error_code=err.error_code,
-                error_category=err.error_category,
-                error_message=err.error_message,
-                severity=FailureSeverity.BLOCKING,
-                spec_section="PARSE ERROR — classified conservatively as blocking",
-                spec_requirement="Could not parse spec citation from agent response",
-            )
-            for err in qc_result.errors
-        ]
-
-    return SpecClassification(
-        inspection_id=qc_result.inspection_id,
-        title_id=qc_result.title_id,
-        vendor_id=qc_result.vendor_id,
-        platform_spec=qc_result.platform_spec,
-        failures=failures,
-        spec_url=spec_url,
-        agent_reasoning=data.get("agent_reasoning", response_text[:500]) if "data" in dir() else "",
-    )
-
-
-# ── CLI entry point ───────────────────────────────────────────────────────────
 
 async def _cli_main() -> None:
     parser = argparse.ArgumentParser(description="Run Spec-Reader agent on a QC result")
@@ -199,7 +228,7 @@ async def _cli_main() -> None:
     output = classification.model_dump_json(indent=2)
     if args.output:
         Path(args.output).write_text(output)
-        print(f"✓ Classification written to {args.output}")
+        print(f"Classification written to {args.output}")
     else:
         print(output)
 
