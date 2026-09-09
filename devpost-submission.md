@@ -56,11 +56,11 @@ The Gate 2 smoke test has been run successfully: Gemini on Vertex AI invoked `mc
 
 ## Public Demo Link
 
-TODO: Add the public Cloud Run URL.
+https://preflight-qc-575561187011.us-central1.run.app
 
 ## Public Repository Link
 
-TODO: Add the public GitHub/GitLab/Bitbucket URL. Confirm `.env` and credentials are not committed.
+https://github.com/Aristide021/preflight-qc/tree/demo-ui-fallback
 
 ## Demo Video
 
@@ -81,14 +81,14 @@ Suggested three-minute flow: explain IMF and the operational problem; load the p
 - Official requirements require a hosted project URL, public repository, open-source license, selected partner track, completed form, and a three-minute functional demo video.
 - ClickHouse track is the intended track.
 - The live ClickHouse MCP and Vertex AI gate is green.
-- The application currently retains a clearly labeled demo mode for development; live mode is the submission path.
+- The judge-facing application is live-only; fixture buttons load public JSON for analysis and do not provide fake analysis results.
 
 ## Known Limitations
 
-- The current public Netflix specification fetch was ungrounded during one end-to-end run and needs a reliable source or an explicit evidence disclosure in the demo.
+- The Netflix Studio Partner page currently serves an HTML shell to automated fetches, so the repository includes a clearly disclosed source snapshot used for grounding.
 - Jira, Slack, and generic webhook adapters are extension points unless configured.
 - The historical corpus is synthetic and must be described as illustrative; ClickHouse runtime querying is real.
-- Cloud Run has not yet been verified with a public URL in this draft.
+- Cloud Run is publicly deployed and has passed a live end-to-end analysis with Gemini on Vertex AI, ClickHouse MCP, and a ClickHouse audit write.
 
 ## TODO Official Form Fields
 
