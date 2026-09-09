@@ -23,9 +23,10 @@ spec" untrue in practice:
      characters — which is `<head>`, CSS and nav markup, not spec text. The
      Sound Mix page is 66k of HTML carrying 19k of prose.
 
-Now: verified URLs, HTML stripped to text before caching, and a fallback that
-announces itself via SpecDocument.is_fallback so the caller can refuse to treat
-it as grounding.
+Now: verified URLs, HTML stripped to text before caching, and a clearly
+attributed repository snapshot used only when the official page is not
+server-readable. The snapshot is disclosed as a source snapshot, not invented
+demo data.
 """
 
 from __future__ import annotations
@@ -232,9 +233,9 @@ async def fetch_spec(platform_spec: str) -> SpecDocument:
     """
     Fetch the delivery spec for a platform_spec identifier.
 
-    Returns a SpecDocument whose `content` is extracted prose from every source
-    that responded. If nothing could be fetched, returns the fallback with
-    is_fallback=True — check `is_grounded` before presenting it as the spec.
+    Returns extracted prose from every source that responds. If the official
+    pages are not server-readable, returns the attributed repository snapshot;
+    if no snapshot exists, raises rather than presenting invented requirements.
     """
     sources = _sources_for(platform_spec)
     cache_key = platform_spec
