@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><style>
+    .title{font-family:Arial,sans-serif;font-size:68px;font-weight:700;fill:#0b2d52}
+    .subtitle{font-family:Arial,sans-serif;font-size:34px;fill:#52708d}
+    .heading{font-family:Arial,sans-serif;font-size:46px;font-weight:700;fill:#0b2d52}
+    .body{font-family:Arial,sans-serif;font-size:30px;fill:#365a78}
+    .small{font-family:Arial,sans-serif;font-size:24px;fill:#52708d}
+    .accent{font-family:Arial,sans-serif;font-size:26px;font-weight:700;fill:#078f8b}
+  </style><g id="imf-slide">
+    <text x="130" y="150" class="heading">Why IMF delivery needs a decision layer</text>
+    <text x="130" y="215" class="subtitle">One master. Many versions. A network of dependencies.</text>
+    <g transform="translate(180 330)">
+      <rect width="270" height="190" rx="20" fill="#0b2d52" />
+      <text x="135" y="75" text-anchor="middle" fill="white" class="heading" font-size="34">MASTER</text>
+      <text x="135" y="125" text-anchor="middle" fill="#dceaf7" class="body" font-size="26">shared picture</text>
+      <text x="135" y="160" text-anchor="middle" fill="#dceaf7" class="body" font-size="26">and audio assets</text>
+    </g>
+    <path d="M465 425 H610" stroke="#11b9b1" stroke-width="9" />
+    <path d="M600 408 l30 17-30 17" fill="#11b9b1" />
+    <g transform="translate(650 275)">
+      <rect width="330" height="300" rx="20" fill="white" stroke="#11b9b1" stroke-width="4" />
+      <text x="165" y="70" text-anchor="middle" class="heading" font-size="34">IMF PACKAGE</text>
+      <text x="165" y="135" text-anchor="middle" class="body" font-size="27">CPL playlists</text>
+      <text x="165" y="180" text-anchor="middle" class="body" font-size="27">PKL + AssetMap</text>
+      <text x="165" y="225" text-anchor="middle" class="body" font-size="27">track files + metadata</text>
+      <text x="165" y="270" text-anchor="middle" class="accent">versioned delivery</text>
+    </g>
+    <path d="M1000 425 H1135" stroke="#11b9b1" stroke-width="9" />
+    <path d="M1125 408 l30 17-30 17" fill="#11b9b1" />
+    <g transform="translate(1180 330)">
+      <rect width="270" height="190" rx="20" fill="#0b2d52" />
+      <text x="135" y="75" text-anchor="middle" fill="white" class="heading" font-size="34">VERSIONS</text>
+      <text x="135" y="125" text-anchor="middle" fill="#dceaf7" class="body" font-size="26">language</text>
+      <text x="135" y="160" text-anchor="middle" fill="#dceaf7" class="body" font-size="26">territory + edit</text>
+    </g>
+    <rect x="400" y="750" width="1120" height="105" rx="52" fill="#d9f6f3" />
+    <text x="960" y="818" text-anchor="middle" class="accent" font-size="30">If one reference or requirement fails, the delivery can fail at ingest.</text>
+  </g></svg>

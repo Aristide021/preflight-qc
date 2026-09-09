@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><style>
+    .title{font-family:Arial,sans-serif;font-size:68px;font-weight:700;fill:#0b2d52}
+    .subtitle{font-family:Arial,sans-serif;font-size:34px;fill:#52708d}
+    .heading{font-family:Arial,sans-serif;font-size:46px;font-weight:700;fill:#0b2d52}
+    .body{font-family:Arial,sans-serif;font-size:30px;fill:#365a78}
+    .small{font-family:Arial,sans-serif;font-size:24px;fill:#52708d}
+    .accent{font-family:Arial,sans-serif;font-size:26px;font-weight:700;fill:#078f8b}
+  </style><g id="title-slide">
+    <rect x="145" y="280" width="150" height="150" rx="24" fill="#0b2d52" />
+    <rect x="180" y="315" width="80" height="62" rx="8" fill="white" />
+    <path d="M195 345 l18 18 32-38" stroke="#11b9b1" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="270" cy="420" r="38" fill="#11b9b1" stroke="#0b2d52" stroke-width="8" />
+    <path d="M253 420 l13 13 24-28" stroke="white" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <text x="350" y="375" class="title">PREFLIGHT <tspan fill="#11b9b1">QC</tspan></text>
+    <text x="355" y="435" class="subtitle">IMF DELIVERY  •  GROUNDED DECISIONS  •  AUDITABLE ACTION</text>
+    <text x="960" y="780" text-anchor="middle" class="small">A decision layer after quality-control validation</text>
+  </g></svg>

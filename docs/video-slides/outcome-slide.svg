@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><style>
+    .title{font-family:Arial,sans-serif;font-size:68px;font-weight:700;fill:#0b2d52}
+    .subtitle{font-family:Arial,sans-serif;font-size:34px;fill:#52708d}
+    .heading{font-family:Arial,sans-serif;font-size:46px;font-weight:700;fill:#0b2d52}
+    .body{font-family:Arial,sans-serif;font-size:30px;fill:#365a78}
+    .small{font-family:Arial,sans-serif;font-size:24px;fill:#52708d}
+    .accent{font-family:Arial,sans-serif;font-size:26px;font-weight:700;fill:#078f8b}
+  </style><g id="outcome-slide">
+    <text x="130" y="150" class="heading">From validator output to the next safe attempt</text>
+    <text x="130" y="215" class="subtitle">The result is a decision a delivery team can act on.</text>
+    <g transform="translate(170 330)">
+      <rect width="470" height="300" rx="22" fill="#fff5f6" stroke="#e28a96" stroke-width="4" />
+      <text x="235" y="80" text-anchor="middle" fill="#9d3743" class="heading" font-size="34">RAW FINDING</text>
+      <text x="235" y="145" text-anchor="middle" class="body" font-size="28">technical error code</text>
+      <text x="235" y="190" text-anchor="middle" class="body" font-size="28">missing asset or metadata</text>
+      <text x="235" y="245" text-anchor="middle" fill="#9d3743" class="accent" font-size="28">needs interpretation</text>
+    </g>
+    <text x="790" y="495" text-anchor="middle" class="accent" font-size="70">→</text>
+    <g transform="translate(980 300)">
+      <rect width="650" height="360" rx="22" fill="white" stroke="#11b9b1" stroke-width="5" />
+      <text x="325" y="78" text-anchor="middle" class="heading" font-size="34">PREFLIGHT QC DECISION</text>
+      <text x="80" y="145" class="body" font-size="28">What failed?</text>
+      <text x="80" y="195" class="body" font-size="28">Why does it matter?</text>
+      <text x="80" y="245" class="body" font-size="28">What should be fixed?</text>
+      <text x="80" y="295" class="body" font-size="28">What gets recorded?</text>
+    </g>
+    <rect x="330" y="790" width="1260" height="100" rx="50" fill="#0b2d52" />
+    <text x="960" y="855" text-anchor="middle" fill="white" class="heading" font-size="32">IMF delivery  •  grounded decisions  •  auditable action</text>
+  </g></svg>
