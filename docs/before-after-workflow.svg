@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Before and after PreFlight QC</title>
+  <desc id="desc">Traditional workflow leaves an engineer to interpret validator output; PreFlight QC adds grounded decision and action.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#f7fbff"/><stop offset="1" stop-color="#eef5f8"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#0b2d52" flood-opacity=".12"/></filter>
+  </defs>
+  <rect width="1600" height="900" rx="28" fill="url(#bg)"/>
+  <text x="100" y="105" font-family="Arial, sans-serif" font-size="48" font-weight="700" fill="#0b2d52">From technical failure to operational clarity</text>
+  <text x="100" y="153" font-family="Arial, sans-serif" font-size="25" fill="#52708d">PreFlight QC adds the judgment layer after validation</text>
+
+  <rect x="100" y="220" width="620" height="540" rx="24" fill="#fff5f6" stroke="#e28a96" stroke-width="3"/>
+  <text x="410" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="#9d3743">TRADITIONAL HANDOFF</text>
+  <text x="410" y="335" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#9d6470">The validator reports the failure</text>
+  <g filter="url(#shadow)">
+    <rect x="175" y="390" width="470" height="85" rx="14" fill="white"/>
+    <text x="410" y="443" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#0b2d52">Raw QC error output</text>
+  </g>
+  <path d="M410 475 V520" stroke="#c76d78" stroke-width="5"/>
+  <g filter="url(#shadow)">
+    <rect x="175" y="530" width="470" height="85" rx="14" fill="white"/>
+    <text x="410" y="583" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#0b2d52">Manual interpretation</text>
+  </g>
+  <path d="M410 615 V660" stroke="#c76d78" stroke-width="5"/>
+  <text x="410" y="705" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#9d3743">Email, discussion, delayed decision</text>
+
+  <rect x="880" y="220" width="620" height="540" rx="24" fill="#edfbfa" stroke="#16b8b0" stroke-width="3"/>
+  <text x="1190" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="#0b625f">WITH PREFLIGHT QC</text>
+  <text x="1190" y="335" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#287c78">The validator finding becomes an action</text>
+  <g filter="url(#shadow)">
+    <rect x="955" y="390" width="470" height="85" rx="14" fill="white"/>
+    <text x="1190" y="443" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#0b2d52">Grounded explanation</text>
+  </g>
+  <path d="M1190 475 V520" stroke="#16a39d" stroke-width="5"/>
+  <g filter="url(#shadow)">
+    <rect x="955" y="530" width="470" height="85" rx="14" fill="white"/>
+    <text x="1190" y="583" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#0b2d52">Redeliver / waive / investigate</text>
+  </g>
+  <path d="M1190 615 V660" stroke="#16a39d" stroke-width="5"/>
+  <text x="1190" y="705" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#0b625f">Remediation + ClickHouse audit trail</text>
+
+  <text x="800" y="835" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#0b2d52">Same validator evidence. A safer, more accountable next step.</text>
+</svg>
