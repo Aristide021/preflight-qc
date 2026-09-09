@@ -71,7 +71,14 @@ Always include:
   - Specific remediation instructions for the vendor
   - The risk context from QC-Analyst
 
-Output: JSON matching the OrchestratorDecision schema."""
+Output: Return JSON matching the OrchestratorDecision schema with keys:
+{
+  "decision": "REDELIVER" | "WAIVE" | "ESCALATE" | "INVESTIGATE",
+  "decision_rationale": "Clear rationale for the decision",
+  "spec_section": "Platform spec section name or number",
+  "spec_requirement": "Quoted requirement from the spec",
+  "remediation_instructions": "Specific instructions for the vendor"
+}"""
 
 
 async def run_orchestrator(
@@ -151,10 +158,24 @@ def _parse_decision(
     try:
         data = json.loads(json_str) if isinstance(json_str, str) else {}
         decision = RedeliveryDecision(data.get("decision", "redeliver").lower())
-        rationale = data.get("decision_rationale", response_text[:500])
-        spec_section = data.get("spec_section", "")
-        spec_req = data.get("spec_requirement", "")
-        remediation = data.get("remediation_instructions", "")
+        rationale = data.get("decision_rationale") or data.get("decision_reason") or response_text[:500]
+        details = data.get("details", [])
+        detail0 = details[0] if isinstance(details, list) and details and isinstance(details[0], dict) else {}
+        spec_section = (
+            data.get("spec_section")
+            or detail0.get("spec_section")
+            or (classification.failures[0].spec_section if classification.failures else "")
+        )
+        spec_req = (
+            data.get("spec_requirement")
+            or detail0.get("spec_requirement")
+            or (classification.failures[0].spec_requirement if classification.failures else "")
+        )
+        remediation = (
+            data.get("remediation_instructions")
+            or detail0.get("remediation_instructions")
+            or " | ".join(f.remediation_hint for f in classification.failures if f.remediation_hint)
+        )
     except Exception:
         # Conservative fallback: blocking failures → redeliver
         decision = (
