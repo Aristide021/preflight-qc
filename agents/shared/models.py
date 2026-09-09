@@ -220,3 +220,46 @@ class RedeliveryRecord(BaseModel):
     spec_requirement: str            = Field(default="")
     risk_score: float                = Field(default=0.0)
     predicted_fail_codes: list[str]  = Field(default_factory=list)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Domain Events & Extensibility Adapters
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AdapterStatus(str, Enum):
+    SUCCESS   = "success"
+    DRY_RUN   = "dry_run"
+    DISABLED  = "disabled"
+    FAILED    = "failed"
+
+
+class AdapterResult(BaseModel):
+    """Result of dispatching a domain event to an external adapter."""
+    adapter_name: str
+    status: AdapterStatus
+    message: str
+    payload: dict[str, Any]          = Field(default_factory=dict)
+    duration_ms: float               = Field(default=0.0)
+
+
+class RedeliveryFiledEvent(BaseModel):
+    """
+    Domain event emitted after a redelivery audit record is successfully
+    committed to ClickHouse. Dispatched to downstream workflow adapters.
+    """
+    event_id: UUID                   = Field(default_factory=uuid4)
+    event_type: str                  = Field(default="redelivery.filed")
+    timestamp: datetime              = Field(default_factory=datetime.utcnow)
+    tracking_id: UUID
+    title_id: str
+    title_name: str
+    vendor_id: str
+    platform_spec: str
+    decision: str
+    decision_rationale: str
+    blocking_findings: list[dict[str, Any]] = Field(default_factory=list)
+    remediation_instructions: str    = Field(default="")
+    estimated_cost_usd: float        = Field(default=0.0)
+    risk_score: float                = Field(default=0.0)
+    release_window_impact: str | None = Field(default=None)
+    metadata: dict[str, Any]         = Field(default_factory=dict)

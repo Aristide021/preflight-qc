@@ -11,7 +11,7 @@
 #
 # Environment variables required (see .env.example):
 #   CLICKHOUSE_HOST, CLICKHOUSE_USER, CLICKHOUSE_PASSWORD
-#   GOOGLE_API_KEY
+#   Vertex AI ADC (or GOOGLE_API_KEY for API-key mode)
 #
 # NOTE ON THE MCP SERVER
 # The official mcp-clickhouse server is a PYTHON package, declared in
@@ -33,9 +33,16 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+# Use the Google Cloud/Vertex AI billing path when local ADC is available.
+# API-key mode remains available if GOOGLE_API_KEY is explicitly configured.
+if not os.environ.get("GOOGLE_API_KEY"):
+    os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "TRUE")
+    os.environ.setdefault("GOOGLE_CLOUD_PROJECT", "gen-lang-client-0768345181")
+    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "us-central1")
+
 # ── Google ADK imports (the hard runtime requirement) ────────────────────────
-# E402: these deliberately follow load_dotenv() — the ADK/genai clients read
-# GOOGLE_API_KEY at import time, so .env must be loaded first.
+# E402: these deliberately follow load_dotenv() and the Vertex configuration
+# above because ADK selects its backend during client construction.
 # ruff: noqa: E402
 import google.adk as adk  # noqa: F401  — asserts the SDK is importable at runtime
 from google.adk.agents import LlmAgent
@@ -48,12 +55,20 @@ from mcp import StdioServerParameters
 
 log = structlog.get_logger()
 
+required_vars = ["CLICKHOUSE_HOST", "CLICKHOUSE_USER", "CLICKHOUSE_PASSWORD"]
+missing = [v for v in required_vars if not os.environ.get(v)]
+if missing:
+    print(f"\n[GATE 2] ABORT: Missing required ClickHouse environment variables: {', '.join(missing)}")
+    print("         Please copy .env.example to .env and set your ClickHouse credentials.")
+    sys.exit(1)
+
 CLICKHOUSE_HOST = os.environ["CLICKHOUSE_HOST"]
 CLICKHOUSE_USER = os.environ["CLICKHOUSE_USER"]
 CLICKHOUSE_PASSWORD = os.environ["CLICKHOUSE_PASSWORD"]
 
 APP_NAME = "gate2_smoke_test"
 USER_ID = "gate2"
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 # A value the agent can only produce by actually reaching ClickHouse.
 GATE2_SENTINEL = "clickhouse-mcp-wiring-works"
@@ -139,7 +154,7 @@ async def run_gate2_smoke_test() -> bool:
         print("\n[GATE 2] Creating LlmAgent with ClickHouse MCP tools...")
         agent = LlmAgent(
             name="gate2_probe_agent",
-            model=os.environ.get("GEMINI_MODEL", "gemini-flash-latest"),
+            model=MODEL,
             description=(
                 "Gate 2 probe agent. Queries ClickHouse via MCP to verify "
                 "the end-to-end integration works."

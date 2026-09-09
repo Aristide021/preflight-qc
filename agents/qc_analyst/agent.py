@@ -40,6 +40,13 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
+# Prefer Vertex AI when no Gemini API key is configured. The project ID may be
+# overridden through the environment for another deployment.
+if not os.environ.get("GOOGLE_API_KEY"):
+    os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "TRUE")
+    os.environ.setdefault("GOOGLE_CLOUD_PROJECT", "gen-lang-client-0768345181")
+    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "us-central1")
+
 # ruff: noqa: E402
 import google.adk as adk  # noqa: F401  — runtime proof the SDK is loaded
 from google.adk.agents import LlmAgent
@@ -61,7 +68,7 @@ from agents.shared.models import HistoricalInsight, QCResult, RiskAssessment
 
 log = structlog.get_logger(__name__)
 
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 APP_NAME = "preflight_qc"
 USER_ID = "qc_analyst_runner"
 

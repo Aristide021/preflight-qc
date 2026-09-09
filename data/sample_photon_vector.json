@@ -1,0 +1,69 @@
+{
+  "inspection_id": "c458a5c8-8700-4c1c-aa41-f31cb9f6018e",
+  "title_id": "PHOTON_TEST_MISSING_FILES",
+  "title_name": "MissingFilesAndAssetMapEntries (Photon Test Vector)",
+  "vendor_id": "Netflix Photon public test fixture",
+  "platform_spec": "netflix-imf-2.1",
+  "spec_version": "netflix-imf-2.1-20240101",
+  "package_type": "IMF",
+  "codec": "JPEG2000",
+  "hdr_format": "SDR",
+  "audio_config": "5.1",
+  "redelivery_attempt": 0,
+  "submitted_at": "2026-08-20T12:00:00Z",
+  "errors": [
+    {
+      "error_code": "IMF_PKL_ERROR",
+      "error_category": "structural",
+      "error_message": "Failed to get path for Asset with ID = bc1a3912-a90a-41b2-b16c-0915a2a1e088 [Photon version: 5.1.0-SNAPSHOT]",
+      "error_context": {
+        "file": "PKL_c458a5c8-8700-4c1c-aa41-f31cb9f6018e.xml",
+        "affected_asset_id": "bc1a3912-a90a-41b2-b16c-0915a2a1e088",
+        "target_file": "VIDEO essence track",
+        "error_level": "FATAL",
+        "source": "Netflix Photon v5.0.1 IMPAnalyzer"
+      },
+      "stage": "photon"
+    },
+    {
+      "error_code": "IMF_PKL_ERROR",
+      "error_category": "structural",
+      "error_message": "Failed to get path for Asset with ID = ab38ef76-30fa-4b18-91d2-1ef95e206b46 [Photon version: 5.1.0-SNAPSHOT]",
+      "error_context": {
+        "file": "PKL_c458a5c8-8700-4c1c-aa41-f31cb9f6018e.xml",
+        "affected_asset_id": "ab38ef76-30fa-4b18-91d2-1ef95e206b46",
+        "target_file": "OPL metadata track",
+        "error_level": "FATAL",
+        "source": "Netflix Photon v5.0.1 IMPAnalyzer"
+      },
+      "stage": "photon"
+    },
+    {
+      "error_code": "IMF_PKL_ERROR",
+      "error_category": "structural",
+      "error_message": "Cannot find asset with id: urn:uuid:a3542de6-5010-41aa-8ab0-d90b90b7f5dc (path according to asset map: /photon/test_vectors/MissingFilesAndAssetMapEntries/VIDEO_a3542de6-5010-41aa-8ab0-d90b90b7f5dc.mxf) [Photon version: 5.1.0-SNAPSHOT]",
+      "error_context": {
+        "file": "PKL_c458a5c8-8700-4c1c-aa41-f31cb9f6018e.xml",
+        "affected_asset_id": "a3542de6-5010-41aa-8ab0-d90b90b7f5dc",
+        "target_file": "VIDEO_a3542de6-5010-41aa-8ab0-d90b90b7f5dc.mxf",
+        "error_level": "NON_FATAL",
+        "source": "Netflix Photon v5.0.1 IMPAnalyzer"
+      },
+      "stage": "photon"
+    },
+    {
+      "error_code": "IMF_PKL_ERROR",
+      "error_category": "structural",
+      "error_message": "Cannot find asset with id: urn:uuid:8cf83c32-4949-4f00-b081-01e12b18932f (path according to asset map: /photon/test_vectors/MissingFilesAndAssetMapEntries/OPL_8cf83c32-4949-4f00-b081-01e12b18932f.xml) [Photon version: 5.1.0-SNAPSHOT]",
+      "error_context": {
+        "file": "PKL_c458a5c8-8700-4c1c-aa41-f31cb9f6018e.xml",
+        "affected_asset_id": "8cf83c32-4949-4f00-b081-01e12b18932f",
+        "target_file": "OPL_8cf83c32-4949-4f00-b081-01e12b18932f.xml",
+        "error_level": "NON_FATAL",
+        "source": "Netflix Photon v5.0.1 IMPAnalyzer"
+      },
+      "stage": "photon"
+    }
+  ],
+  "raw_output": "-- Source: Netflix Photon IMPAnalyzer v5.0.1 execution against test vector MissingFilesAndAssetMapEntries --\nFATAL IMF_PKL_ERROR: Failed to get path for Asset with ID = bc1a3912-a90a-41b2-b16c-0915a2a1e088\nFATAL IMF_PKL_ERROR: Failed to get path for Asset with ID = ab38ef76-30fa-4b18-91d2-1ef95e206b46\nNON_FATAL IMF_PKL_ERROR: Cannot find asset with id: urn:uuid:a3542de6-5010-41aa-8ab0-d90b90b7f5dc (path: VIDEO_a3542de6-5010-41aa-8ab0-d90b90b7f5dc.mxf)\nNON_FATAL IMF_PKL_ERROR: Cannot find asset with id: urn:uuid:8cf83c32-4949-4f00-b081-01e12b18932f (path: OPL_8cf83c32-4949-4f00-b081-01e12b18932f.xml)\n"
+}

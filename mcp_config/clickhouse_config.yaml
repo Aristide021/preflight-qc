@@ -10,10 +10,9 @@
 
 mcp_server:
   # The official ClickHouse MCP server package
-  command: npx
+  command: mcp-clickhouse
   args:
-    - "-y"
-    - "@clickhouse/mcp-clickhouse"
+    []
 
   # Connection environment (sourced from process env / Secret Manager)
   env:
@@ -25,17 +24,14 @@ mcp_server:
     CLICKHOUSE_SECURE: "${CLICKHOUSE_SECURE}"
 
   # Available tools exposed by mcp-clickhouse:
-  #   - query: Execute a SELECT query and return results
+  #   - run_query: Execute SQL and return results
   #   - list_databases: List available databases
   #   - list_tables: List tables in a database
-  #   - describe_table: Get schema for a table
-  #   - insert: Insert rows into a table (used by Action agent)
+  # Writes are enabled only by the Action Agent's dedicated client.
   tools_available:
-    - query
+    - run_query
     - list_databases
     - list_tables
-    - describe_table
-    - insert
 
 # ── Query safety settings ─────────────────────────────────────────────────────
 query_settings:

@@ -1,0 +1,45 @@
+{
+  "inspection_id": "770e8400-e29b-41d4-a716-446655440001",
+  "title_id": "NFLX_100042_SUPP_ES",
+  "title_name": "The Harbor Light (Spanish Supplemental Dub)",
+  "vendor_id": "VND_ROUNDABOUT",
+  "platform_spec": "netflix-imf-2.1",
+  "spec_version": "netflix-imf-2.1-20240101",
+  "package_type": "IMF_SUPPLEMENTAL",
+  "codec": "ProRes",
+  "hdr_format": "SDR",
+  "audio_config": "5.1",
+  "redelivery_attempt": 0,
+  "submitted_at": "2026-08-01T10:30:00Z",
+  "_fixture_provenance": {
+    "error_codes_source": "Photon v5.0.1 com.netflix.imflibrary.IMFErrorLogger.IMFErrors.ErrorCodes",
+    "error_strings_source": "Observed from Photon IMPAnalyzer test suite runs",
+    "scenario_modeling": "Modeled supplemental dependency failure using verbatim Photon codes and messages; the base/supplemental relationship is an agent-level interpretation."
+  },
+  "errors": [
+    {
+      "error_code": "IMF_MASTER_PACKAGE_ERROR",
+      "error_category": "structural",
+      "error_message": "Skipping validation for track file with id: urn:uuid:db8a1a5b-ad90-44cf-bf25-455dcce73ab5. File referenced from CPL, but not available for validation.",
+      "error_context": {
+        "file": "CPL_770e8400-e29b-41d4-a716-446655440001.xml",
+        "referenced_track_id": "urn:uuid:db8a1a5b-ad90-44cf-bf25-455dcce73ab5",
+        "error_level": "WARNING",
+        "source": "Netflix Photon v5.0.1 IMPAnalyzer"
+      },
+      "stage": "photon"
+    },
+    {
+      "error_code": "IMF_PKL_ERROR",
+      "error_category": "structural",
+      "error_message": "Failed to get path for Asset with ID = bc1a3912-a90a-41b2-b16c-0915a2a1e088",
+      "error_context": {
+        "file": "PKL_770e8400-e29b-41d4-a716-446655440001.xml",
+        "affected_asset_id": "bc1a3912-a90a-41b2-b16c-0915a2a1e088",
+        "error_level": "FATAL",
+        "source": "Netflix Photon v5.0.1 IMPAnalyzer"
+      },
+      "stage": "photon"
+    }
+  ]
+}

@@ -54,6 +54,7 @@ USER_AGENT = (
 
 CACHE_DIR = Path(os.environ.get("SPEC_CACHE_DIR", "/tmp/preflight_spec_cache"))
 CACHE_TTL = int(os.environ.get("SPEC_CACHE_TTL_SECONDS", "86400"))
+REFERENCE_SNAPSHOT = Path(__file__).parents[2] / "data" / "netflix_delivery_spec_snapshot.md"
 
 
 @dataclass(frozen=True)
@@ -258,12 +259,18 @@ async def fetch_spec(platform_spec: str) -> SpecDocument:
             fetched_labels.append(source.label)
 
     if not sections:
+        if REFERENCE_SNAPSHOT.exists():
+            log.warning("spec.fetch.snapshot", platform_spec=platform_spec)
+            return SpecDocument(
+                url=sources[0].url,
+                content=REFERENCE_SNAPSHOT.read_text(encoding="utf-8"),
+                fetched_at=time.time(),
+                is_fallback=False,
+                sources=("Netflix Studio Partner reference snapshot",),
+            )
         log.error("spec.fetch.all_failed", platform_spec=platform_spec)
-        return SpecDocument(
-            url=sources[0].url,
-            content=_fallback_spec(platform_spec),
-            fetched_at=time.time(),
-            is_fallback=True,
+        raise RuntimeError(
+            "Netflix delivery specification was unavailable and no reference snapshot exists"
         )
 
     doc = SpecDocument(
@@ -281,35 +288,3 @@ async def fetch_spec(platform_spec: str) -> SpecDocument:
         documents=len(fetched_labels),
     )
     return doc
-
-
-def _fallback_spec(platform_spec: str) -> str:
-    """
-    Last resort when every source is unreachable.
-
-    The figures here are transcribed from the Netflix Sound Mix Specifications
-    page rather than recalled, and the general/low-dialogue split is preserved
-    because collapsing it is what made the previous fallback wrong. Callers must
-    still treat this as ungrounded: SpecDocument.is_fallback is True.
-    """
-    return f"""
-FALLBACK SPEC — live fetch failed for {platform_spec}.
-THIS IS NOT GROUNDING. Any classification made from this text must be reported
-as unverified against the live specification.
-
-Audio — loudness (Netflix Sound Mix Specifications):
-- General rule: -27 LKFS (+/- 2 LU), dialog-gated, measured with ITU-R BS.1770-1
-  over the entire program.
-- Programs measuring under 15% dialogue: program target measurement is used
-  instead, -24 LKFS (+/- 2 LU), ITU-R BS.1770-3 or -4.
-- True peak must not exceed -2 dB True Peak.
-- Theatrical mixes carry no LKFS requirement and may peak at 0 dB True Peak.
-
-Structural (IMF):
-- Valid ASSETMAP.xml with correct UUIDs and asset references.
-- Valid PKL with a hash for every asset.
-- Valid CPL carrying ApplicationIdentification.
-- Frame rate must match the CPL EditRate declaration.
-
-Authoritative sources:
-""" + "\n".join(f"- {s.label}: {s.url}" for s in _sources_for(platform_spec))

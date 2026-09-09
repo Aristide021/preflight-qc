@@ -1,0 +1,58 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: preflight-qc
+  labels:
+    cloud.googleapis.com/location: us-central1
+    app: preflight-qc
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "5"
+        run.googleapis.com/cpu-throttling: "true"
+    spec:
+      serviceAccountName: preflight-qc-sa@${PROJECT_ID}.iam.gserviceaccount.com
+      timeoutSeconds: 300
+      containers:
+        - image: gcr.io/${PROJECT_ID}/preflight-qc:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: PORT
+              value: "8080"
+            - name: GEMINI_MODEL
+              value: "gemini-2.5-flash"
+            - name: GOOGLE_GENAI_USE_VERTEXAI
+              value: "TRUE"
+            - name: GOOGLE_CLOUD_PROJECT
+              value: "${PROJECT_ID}"
+            - name: GOOGLE_CLOUD_LOCATION
+              value: "us-central1"
+            - name: CLICKHOUSE_SECURE
+              value: "true"
+            - name: CLICKHOUSE_DATABASE
+              value: "preflight"
+            # Secrets sourced directly from Google Secret Manager
+            - name: CLICKHOUSE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-host
+                  key: latest
+            - name: CLICKHOUSE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-user
+                  key: latest
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-password
+                  key: latest

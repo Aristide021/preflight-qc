@@ -118,12 +118,22 @@ class ClickHouseMCP:
                 "Copy .env.example to .env and fill in the values."
             )
 
+        # Determine database credentials based on privilege level.
+        # In production, true security isolation is enforced at the database level
+        # via distinct ClickHouse roles/users (see infra/clickhouse/rbac.sql).
+        if self.allow_writes:
+            db_user = os.environ.get("CLICKHOUSE_WRITE_USER") or os.environ["CLICKHOUSE_USER"]
+            db_pass = os.environ.get("CLICKHOUSE_WRITE_PASSWORD") or os.environ["CLICKHOUSE_PASSWORD"]
+        else:
+            db_user = os.environ.get("CLICKHOUSE_READONLY_USER") or os.environ["CLICKHOUSE_USER"]
+            db_pass = os.environ.get("CLICKHOUSE_READONLY_PASSWORD") or os.environ["CLICKHOUSE_PASSWORD"]
+
         env = {
             **os.environ,
             "CLICKHOUSE_HOST": os.environ["CLICKHOUSE_HOST"],
             "CLICKHOUSE_PORT": os.environ.get("CLICKHOUSE_PORT", "8443"),
-            "CLICKHOUSE_USER": os.environ["CLICKHOUSE_USER"],
-            "CLICKHOUSE_PASSWORD": os.environ["CLICKHOUSE_PASSWORD"],
+            "CLICKHOUSE_USER": db_user,
+            "CLICKHOUSE_PASSWORD": db_pass,
             "CLICKHOUSE_DATABASE": os.environ.get("CLICKHOUSE_DATABASE", "preflight"),
             "CLICKHOUSE_SECURE": os.environ.get("CLICKHOUSE_SECURE", "true"),
             # Explicit either way: never inherit write access from the ambient

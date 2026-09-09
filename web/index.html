@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PreFlight QC — Delivery Control Tower</title>
+  <style>
+    :root { --bg:#f4f7fb; --ink:#122033; --muted:#607085; --line:#dce4ee; --navy:#10243e; --blue:#1677ff; --teal:#0aa6a6; --red:#d74757; --amber:#b87813; --shadow:0 18px 50px rgba(28,53,85,.09); }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    .shell { display:grid; grid-template-columns:245px 1fr; min-height:100vh; }
+    aside { background:var(--navy); color:#dbe8f8; padding:28px 20px; }
+    .brand { color:#fff; font-weight:800; letter-spacing:-.04em; font-size:22px; margin-bottom:7px; }
+    .subbrand { color:#91a9c7; font-size:12px; margin-bottom:48px; }
+    nav a { display:block; color:#a9bad0; text-decoration:none; padding:11px 12px; border-radius:9px; margin:4px 0; }
+    nav a.active, nav a:hover { background:#1d3a5e; color:#fff; }
+    .side-note { border-top:1px solid #2d4665; margin-top:48px; padding:18px 12px; color:#93a9c4; font-size:12px; }
+    main { padding:34px 42px 60px; max-width:1450px; width:100%; }
+    .top { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:28px; }
+    h1 { font-size:30px; letter-spacing:-.04em; margin:0 0 5px; }
+    .lede { color:var(--muted); margin:0; }
+    .status { background:#fff; border:1px solid var(--line); border-radius:999px; padding:9px 14px; color:var(--muted); font-size:12px; white-space:nowrap; box-shadow:0 4px 15px rgba(28,53,85,.04); }
+    .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--amber); margin-right:7px; }
+    .hero { background:linear-gradient(120deg,#143b67,#1b6790); color:#fff; border-radius:17px; padding:26px 29px; display:flex; justify-content:space-between; align-items:center; gap:25px; box-shadow:var(--shadow); margin-bottom:22px; }
+    .hero h2 { margin:0 0 6px; font-size:20px; letter-spacing:-.02em; }
+    .hero p { margin:0; color:#c8e2f6; max-width:680px; }
+    button { border:0; border-radius:9px; padding:11px 15px; font:inherit; cursor:pointer; font-weight:700; }
+    .primary { color:#11315a; background:#fff; }
+    .secondary { background:#eaf2fb; color:#17304d; }
+    .intake { background:#fff; border:1px solid var(--line); border-radius:15px; padding:21px; box-shadow:var(--shadow); margin-bottom:22px; }
+    .section-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:13px; }
+    h3 { margin:0; font-size:16px; }
+    textarea { width:100%; min-height:105px; resize:vertical; border:1px solid var(--line); border-radius:10px; padding:12px; font:12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color:#29405e; background:#fbfdff; }
+    .actions { display:flex; gap:10px; margin-top:12px; align-items:center; }
+    .hint { color:var(--muted); font-size:12px; }
+    .overview { display:grid; grid-template-columns:1.6fr repeat(3,1fr); gap:14px; margin-bottom:22px; }
+    .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:19px; box-shadow:var(--shadow); }
+    .eyebrow { color:var(--muted); text-transform:uppercase; font-size:10px; letter-spacing:.1em; font-weight:800; }
+    .value { font-size:25px; font-weight:800; letter-spacing:-.04em; margin-top:5px; }
+    .small { color:var(--muted); font-size:12px; }
+    .risk-ring { display:flex; align-items:center; gap:14px; }
+    .ring { width:59px; height:59px; border-radius:50%; display:grid; place-items:center; background:conic-gradient(var(--red) 0 68%, #edf1f6 68%); position:relative; }
+    .ring:after { content:""; position:absolute; inset:7px; background:#fff; border-radius:50%; }
+    .ring span { position:relative; z-index:1; font-weight:800; font-size:13px; }
+    .workspace { display:grid; grid-template-columns:1.3fr 1fr; gap:18px; }
+    .panel { background:#fff; border:1px solid var(--line); border-radius:15px; padding:21px; box-shadow:var(--shadow); }
+    .panel + .panel { margin-top:18px; }
+    .finding { border:1px solid #e5eaf1; border-left:4px solid var(--red); padding:14px; border-radius:9px; margin-top:12px; }
+    .finding.cosmetic { border-left-color:var(--amber); }
+    .tag { border-radius:999px; padding:3px 8px; font-size:10px; text-transform:uppercase; letter-spacing:.07em; font-weight:800; background:#fde9ec; color:var(--red); }
+    .tag.cosmetic { background:#fff3dc; color:var(--amber); }
+    .finding-head { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+    .code { font:700 12px ui-monospace, monospace; color:#29405e; }
+    .finding p { margin:8px 0; font-size:13px; }
+    .quote { background:#f5f8fb; color:#51627a; padding:10px 12px; border-radius:8px; font-size:12px; }
+    .decision { border:1px solid #ffd1d7; background:#fff7f8; }
+    .decision-word { color:var(--red); font-weight:900; font-size:25px; letter-spacing:.06em; }
+    .remedy { background:#edf8f7; border-left:4px solid var(--teal); padding:13px 15px; border-radius:8px; margin-top:14px; }
+    .metric-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #edf1f5; font-size:13px; }
+    .metric-row:last-child { border-bottom:0; }
+    .source { color:#9a6818; background:#fff6e5; border:1px solid #f4dfaf; padding:10px 12px; border-radius:9px; font-size:12px; margin-top:14px; }
+    .empty { text-align:center; padding:34px 10px; color:var(--muted); }
+    @media(max-width:1050px){ .overview{grid-template-columns:repeat(2,1fr)} .overview .card:first-child{grid-column:span 2}.workspace{grid-template-columns:1fr} }
+    @media(max-width:700px){ .shell{display:block} aside{padding:18px} nav{display:flex; gap:5px; overflow:auto} nav a{white-space:nowrap} .side-note{display:none} main{padding:23px 16px 40px}.top,.hero{display:block}.top .status{display:inline-block;margin-top:15px}.hero button{margin-top:17px}.overview{grid-template-columns:1fr 1fr}.overview .card:first-child{grid-column:span 2} }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand">PreFlight QC</div>
+      <div class="subbrand">Delivery control tower</div>
+      <nav>
+        <a class="active" href="#workspace">Overview</a>
+        <a href="#findings">Current delivery</a>
+        <a href="#history">Vendor history</a>
+        <a href="#decision">Remediation</a>
+      </nav>
+      <div class="side-note">Turn QC output into an explainable decision, a practical fix, and a trackable next attempt.</div>
+    </aside>
+    <main>
+      <div class="top">
+        <div><h1>Delivery control tower</h1><p class="lede">One place to understand what failed, why it matters, and what to do next.</p></div>
+        <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">Checking system status...</span></div>
+      </div>
+      <section class="hero">
+        <div><h2>Make the next delivery safer than the last</h2><p>Bring in a QC result and let the crew connect spec evidence, delivery history, and a concrete remediation plan.</p></div>
+        <div style="display:flex; flex-direction:column; gap:9px; min-width:240px;">
+          <button class="primary" id="sampleBtn">Multi-stage QC sample</button>
+          <button class="primary" id="photonBtn" style="background:#0aa6a6; color:#fff;">Netflix Photon test fixture</button>
+        </div>
+      </section>
+      <section class="intake">
+        <div class="section-title">
+          <h3>Inspect a delivery</h3>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="hint">Live Gemini + ClickHouse MCP</span>
+          </div>
+        </div>
+        <details id="payloadDetails" style="margin-bottom:12px;">
+          <summary style="cursor:pointer; font-size:12px; font-weight:700; color:var(--blue); padding:4px 0; user-select:none;">View / Edit QC JSON payload</summary>
+          <textarea id="payload" aria-label="QC result JSON" placeholder="Paste a QC result JSON object here..."></textarea>
+        </details>
+        <div class="actions"><button class="secondary" id="analyzeBtn">Analyze delivery</button><span class="hint" id="message"></span></div>
+      </section>
+      <div id="workspace" class="empty">Load a delivery to begin the analysis.</div>
+    </main>
+  </div>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const pretty = (obj) => JSON.stringify(obj, null, 2);
+
+    // Check system status on page load
+    fetch('/api/status').then(r => r.json()).then(st => {
+      if (st.live_available) {
+        $('statusDot').style.background = 'var(--teal)';
+        $('statusText').textContent = st.display_status || 'Live Ready (Gemini + ClickHouse MCP)';
+      } else {
+        $('statusDot').style.background = 'var(--amber)';
+        $('statusText').textContent = st.display_status || 'Live services unavailable';
+      }
+    }).catch(() => {
+      $('statusDot').style.background = 'var(--amber)';
+      $('statusText').textContent = 'Live services unavailable';
+    });
+
+    function render(data) {
+      const qc = data.qc_result, c = data.classification, a = data.assessment, d = data.decision, tr = data.tracking_record;
+      const isLive = data.mode === 'live';
+      $('statusDot').style.background = isLive ? 'var(--teal)' : 'var(--amber)';
+      $('statusText').textContent = data.source_label;
+      $('workspace').className = '';
+      $('payloadDetails').open = false;
+      const packageAction = c.blocking_count ? 'Hold this delivery until the blocking issues are corrected.' : 'This delivery can proceed with the noted follow-ups.';
+      
+      const trackingHtml = tr ? `
+        <div class="metric-row"><span>Tracking record</span><strong style="color:var(--teal)">Filed to ClickHouse</strong></div>
+        <div class="metric-row"><span>Tracking ID</span><strong style="font-size:11px; font-family:monospace;">${tr.tracking_id}</strong></div>
+        <div class="metric-row"><span>Filed at</span><strong>${tr.filed_at}</strong></div>
+        <div class="metric-row"><span>Status</span><span class="tag">${tr.status}</span></div>
+      ` : `
+        <div class="metric-row"><span>Tracking record</span><strong>${d.decision === 'redeliver' ? 'Pending filing' : 'No redelivery required'}</strong></div>
+        <p class="small" style="margin-top:8px; color:var(--muted)">Decision is <strong>${d.decision.toUpperCase()}</strong>. ${d.decision === 'redeliver' ? 'Redelivery ticket required.' : 'No redelivery tracking record created.'}</p>
+      `;
+
+      $('workspace').innerHTML = `
+        <section class="overview">
+          <div class="card"><div class="eyebrow">Package status</div><div class="value" style="color:${c.blocking_count ? 'var(--red)' : 'var(--teal)'}">${c.blocking_count ? 'Blocked' : 'Ready'}</div><div class="small">${packageAction}</div><div class="small" style="margin-top:7px"><strong>${qc.title_name || qc.title_id || 'Untitled delivery'}</strong> &middot; ${qc.vendor_id || 'Unknown vendor'}</div></div>
+          <div class="card"><div class="eyebrow">Blocking</div><div class="value" style="color:${c.blocking_count ? 'var(--red)' : 'var(--teal)'}">${c.blocking_count}</div><div class="small">${c.blocking_count ? 'Redelivery required' : 'No blockers'}</div></div>
+          <div class="card"><div class="eyebrow">Risk score</div><div class="risk-ring"><div class="ring" style="background:conic-gradient(${a.risk_score > 0.5 ? 'var(--red)' : 'var(--teal)'} 0 ${Math.round(a.risk_score*100)}%, #edf1f6 ${Math.round(a.risk_score*100)}%)"><span>${Math.round(a.risk_score*100)}%</span></div><div><div class="value" style="font-size:18px">${a.risk_label}</div><div class="small">Historical context</div></div></div></div>
+          <div class="card"><div class="eyebrow">Estimated cost</div><div class="value">$${Number(a.estimated_remediation_cost_usd || 0).toLocaleString()}</div><div class="small">Based on delivery history</div></div>
+        </section>
+        <section class="workspace">
+          <div>
+            <section class="panel" id="findings"><div class="section-title"><h3>What needs attention</h3><span class="small">${c.failures.length} findings</span></div>${c.failures.map((f, i) => {
+              const ctx = f.error_context || {};
+              const targetBadge = ctx.target_file ? `<div class="code" style="margin-top:6px; background:#f2f6fb; padding:5px 9px; border-radius:6px; font-size:11px;"><strong>Affected file:</strong> ${ctx.target_file} ${ctx.affected_asset_id ? `&middot; <code>${ctx.affected_asset_id}</code>` : ''}</div>` : '';
+              return `<div class="finding ${f.severity}"><div class="finding-head"><div><div class="eyebrow">${f.user_label || 'Package check'} · Finding #${i+1}</div><strong>${f.user_summary || f.error_message}</strong></div><span class="tag ${f.severity}">${f.severity}</span></div>${targetBadge}<p class="small" style="margin-top:8px;"><strong>Why it matters:</strong> ${f.impact || 'This may affect acceptance at ingest.'}</p><div class="quote">${f.spec_requirement}</div><p class="small"><strong>Recommended fix:</strong> ${f.remediation_hint}</p><details style="margin-top:6px;"><summary class="small" style="cursor:pointer; color:var(--muted);">Technical error details</summary><p class="small" style="margin:4px 0;"><span class="code">${f.error_code}</span><br>${f.error_message}</p></details></div>`;
+            }).join('') || '<div class="empty">No failures reported.</div>'}</section>
+            <section class="panel" id="history"><div class="section-title"><h3>What history says</h3><span class="small">Vendor + package context</span></div><div class="metric-row"><span>Vendor failure rate</span><strong>${(a.vendor_historical_fail_rate*100).toFixed(1)}%</strong></div><div class="metric-row"><span>Historical submissions</span><strong>${Number(a.vendor_total_submissions).toLocaleString()}</strong></div><div class="metric-row"><span>Average redelivery attempts</span><strong>${a.avg_redelivery_attempts}</strong></div><div class="metric-row"><span>Likely repeat codes</span><strong>${(a.predicted_failure_codes || []).join(', ') || 'None identified'}</strong></div><div class="source" style="background:#fff7e6; border:1px solid #ffd591; color:#ad6800; font-weight:600;">${a.analytics_label || data.source_label}</div></section>
+          </div>
+          <div>
+            <section class="panel decision" id="decision"><div class="eyebrow">Recommended next step</div><div class="decision-word">${d.decision === 'redeliver' ? 'CORRECT & RERUN QC' : d.decision.toUpperCase()}</div><p>${d.decision_rationale}</p><div class="quote">${d.spec_requirement}</div><div class="remedy"><strong>What to send the vendor</strong><br>${d.remediation_instructions}</div></section>
+            <section class="panel"><div class="section-title"><h3>Audit trail</h3><span class="tag ${tr ? '' : 'cosmetic'}">${tr ? 'Filed' : (d.decision === 'redeliver' ? 'Pending' : 'Waived')}</span></div><div class="metric-row"><span>Spec reader</span><strong>${c.spec_version_used}</strong></div><div class="metric-row"><span>QC analyst</span><strong>${a.risk_label} risk</strong></div><div class="metric-row"><span>Action status</span><strong>${tr ? 'Filing verified' : (d.decision === 'redeliver' ? 'Redelivery ticket needed' : 'Waived / Closed')}</strong></div>${trackingHtml}<p class="small" style="margin-top:12px">Every decision is designed to become queryable history for the next delivery.</p></section>
+          </div>
+        </section>`;
+      window.scrollTo({top:0, behavior:'smooth'});
+    }
+
+    async function analyze(payload) {
+      $('message').textContent = 'Analyzing…';
+      const mode = 'live';
+      try {
+        const res = await fetch(`/api/analyze?mode=${encodeURIComponent(mode)}`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          $('workspace').className = '';
+          $('workspace').innerHTML = `
+            <div class="panel" style="border:2px solid var(--red); background:#fff5f6; margin-top:10px;">
+              <div class="section-title"><h3 style="color:var(--red)">Execution Failed (${mode.toUpperCase()} Mode)</h3></div>
+              <p><strong>Error:</strong> ${data.error || 'Server error'}</p>
+              ${data.details ? `<pre style="background:#fff; border:1px solid #fedfe2; padding:12px; border-radius:8px; font-size:12px; overflow-x:auto;">${data.details}</pre>` : ''}
+              <p class="hint" style="margin-top:10px">In live mode, system errors and Action Agent failures are never hidden behind fallback fixtures.</p>
+            </div>
+          `;
+          $('statusDot').style.background = 'var(--red)';
+          $('statusText').textContent = `Execution error in ${mode} mode`;
+          $('message').textContent = 'Execution failed';
+          return;
+        }
+        render(data);
+        $('message').textContent = 'Analysis complete';
+      } catch (e) {
+        $('message').textContent = e.message;
+      }
+    }
+
+    $('sampleBtn').onclick = async () => {
+      const res = await fetch('/api/sample?mode=live&type=multistage');
+      const data = await res.json();
+      $('payload').value = pretty(data.qc_result);
+      render(data);
+    };
+
+    $('photonBtn').onclick = async () => {
+      const res = await fetch('/api/sample?mode=live&type=photon');
+      const data = await res.json();
+      $('payload').value = pretty(data.qc_result);
+      render(data);
+    };
+
+    $('analyzeBtn').onclick = () => {
+      try {
+        analyze(JSON.parse($('payload').value));
+      } catch(e) {
+        $('message').textContent = 'Please provide valid JSON.';
+      }
+    };
+  </script>
+</body>
+</html>

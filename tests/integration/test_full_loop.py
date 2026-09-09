@@ -102,7 +102,7 @@ async def test_full_agent_loop_closes() -> None:
         )
 
     # Step 2: QC-Analyst
-    assessment = await run_qc_analyst(qc_result, classification)
+    assessment = await run_qc_analyst(qc_result)
 
     assert assessment is not None, "QC-Analyst returned None"
     assert 0.0 <= assessment.risk_score <= 1.0, (
@@ -182,7 +182,7 @@ async def test_qc_analyst_returns_risk_score() -> None:
         ],
     )
 
-    assessment = await run_qc_analyst(qc_result, classification)
+    assessment = await run_qc_analyst(qc_result)
 
     assert assessment.risk_score >= 0.0
     assert assessment.risk_label in ("low", "medium", "high", "critical")

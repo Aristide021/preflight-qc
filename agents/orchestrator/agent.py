@@ -22,8 +22,20 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
-import google.adk as adk
+# Prefer Vertex AI when no Gemini API key is configured. The project ID may be
+# overridden through the environment for another deployment.
+if not os.environ.get("GOOGLE_API_KEY"):
+    os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "TRUE")
+    os.environ.setdefault("GOOGLE_CLOUD_PROJECT", "gen-lang-client-0768345181")
+    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "us-central1")
+
+import asyncio
+
+import google.adk as adk  # noqa: F401 — runtime proof the SDK is loaded
 from google.adk.agents import LlmAgent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
 
 from agents.shared.models import (
     OrchestratorDecision,
@@ -34,7 +46,7 @@ from agents.shared.models import (
 )
 
 log = structlog.get_logger(__name__)
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 SYSTEM_PROMPT = """You are the Orchestrator agent for a media delivery QC compliance system.
 
@@ -95,12 +107,12 @@ instructions that the vendor can act on immediately."""
         instruction=SYSTEM_PROMPT,
     )
 
-    session_service = adk.InMemorySessionService()
+    session_service = InMemorySessionService()
     session = await session_service.create_session(
         app_name="preflight_qc",
         user_id="orchestrator_runner",
     )
-    runner = adk.Runner(
+    runner = Runner(
         agent=agent,
         app_name="preflight_qc",
         session_service=session_service,
@@ -110,9 +122,9 @@ instructions that the vendor can act on immediately."""
     async for event in runner.run_async(
         user_id="orchestrator_runner",
         session_id=session.id,
-        new_message=adk.types.Content(
+        new_message=types.Content(
             role="user",
-            parts=[adk.types.Part(text=prompt)],
+            parts=[types.Part(text=prompt)],
         ),
     ):
         if hasattr(event, "content") and event.content:
@@ -169,3 +181,84 @@ def _parse_decision(
         estimated_cost_usd=assessment.estimated_remediation_cost_usd,
         remediation_instructions=remediation,
     )
+
+
+async def run_full_pipeline(qc_result: QCResult) -> dict[str, Any]:
+    """
+    Coordinate the end-to-end multi-agent loop:
+      1. Concurrently run Spec-Reader and QC-Analyst on incoming QCResult
+      2. Synthesize with Orchestrator to make a compliance decision
+      3. Conditionally execute Action Agent only if decision is REDELIVER
+    """
+    from agents.action.agent import file_redelivery
+    from agents.qc_analyst.agent import run_qc_analyst
+    from agents.spec_reader.agent import run_spec_reader
+
+    log.info("orchestrator.pipeline.start", title_id=qc_result.title_id)
+
+    # Step 1: Concurrently run Spec-Reader and QC-Analyst
+    classification, assessment = await asyncio.gather(
+        run_spec_reader(qc_result),
+        run_qc_analyst(qc_result),
+    )
+
+    # Step 2: Orchestrator synthesizes decision
+    decision = await run_orchestrator(qc_result, classification, assessment)
+
+    # Step 3: Conditionally file redelivery if REDELIVER
+    tracking_record = None
+    if decision.decision == RedeliveryDecision.REDELIVER:
+        try:
+            tracking_record = await file_redelivery(qc_result, decision, assessment)
+        except Exception as exc:
+            log.error("orchestrator.pipeline.action_failed", error=str(exc))
+            raise RuntimeError(
+                f"Action Agent failed to write redelivery tracking record: {exc}"
+            ) from exc
+
+    return {
+        "qc_result": qc_result,
+        "classification": classification,
+        "assessment": assessment,
+        "decision": decision,
+        "tracking_record": tracking_record,
+    }
+
+
+def main() -> None:
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="PreFlight QC Orchestrator CLI")
+    parser.add_argument("--input", required=True, help="Path to QC result JSON file")
+    args = parser.parse_args()
+
+    input_path = Path(args.input)
+    if not input_path.is_file():
+        print(f"Error: Input file not found: {input_path}", file=sys.stderr)
+        sys.exit(1)
+
+    with open(input_path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+
+    qc_result = QCResult.model_validate(payload)
+    print(f"Loaded QCResult: title={qc_result.title_id}, errors={len(qc_result.errors)}")
+
+    result = asyncio.run(run_full_pipeline(qc_result))
+
+    print("\n" + "=" * 60)
+    print(f"ORCHESTRATOR DECISION: {result['decision'].decision.value.upper()}")
+    print("=" * 60)
+    print(f"Rationale: {result['decision'].decision_rationale}")
+    print(f"Risk score: {result['assessment'].risk_score} ({result['assessment'].risk_label})")
+    print(f"Blocking failures: {result['classification'].blocking_count}")
+    print(f"Spec cited: {result['decision'].spec_section} - {result['decision'].spec_requirement}")
+    print(f"Remediation: {result['decision'].remediation_instructions}")
+    if result.get("tracking_record"):
+        print(f"Tracking ID filed: {result['tracking_record'].tracking_id}")
+    else:
+        print("No redelivery record filed (decision was not REDELIVER).")
+
+
+if __name__ == "__main__":
+    main()
