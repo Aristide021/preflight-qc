@@ -199,17 +199,19 @@
     }
 
     $('sampleBtn').onclick = async () => {
-      const res = await fetch('/api/sample?mode=live&type=multistage');
+      const res = await fetch('/api/sample?mode=load&type=multistage');
       const data = await res.json();
       $('payload').value = pretty(data.qc_result);
-      render(data);
+      $('message').textContent = 'Multi-stage sample loaded. Click Analyze delivery to run live QC.';
+      $('payloadDetails').open = true;
     };
 
     $('photonBtn').onclick = async () => {
-      const res = await fetch('/api/sample?mode=live&type=photon');
+      const res = await fetch('/api/sample?mode=load&type=photon');
       const data = await res.json();
       $('payload').value = pretty(data.qc_result);
-      render(data);
+      $('message').textContent = 'Photon fixture loaded. Click Analyze delivery to run live QC.';
+      $('payloadDetails').open = true;
     };
 
     $('analyzeBtn').onclick = () => {

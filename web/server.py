@@ -320,6 +320,9 @@ class Handler(BaseHTTPRequestHandler):
                 sample_file = SAMPLE
             try:
                 sample_payload = json.loads(sample_file.read_text(encoding="utf-8"))
+                if mode == "load":
+                    self._send(200, "application/json", json.dumps({"qc_result": sample_payload, "mode": "load"}).encode())
+                    return
                 result = process_qc(sample_payload, mode=mode)
                 self._send(200, "application/json", json.dumps(result).encode())
             except Exception as exc:
