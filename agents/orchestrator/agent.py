@@ -142,6 +142,31 @@ instructions that the vendor can act on immediately."""
     return _parse_decision(response_text, qc_result, classification, assessment)
 
 
+def _stringify(val: Any) -> str:
+    if not val:
+        return ""
+    if isinstance(val, str):
+        return val
+    if isinstance(val, list):
+        parts = []
+        for item in val:
+            if isinstance(item, dict):
+                part = (
+                    item.get("remediation_instructions")
+                    or item.get("remediation")
+                    or item.get("fix")
+                    or item.get("message")
+                    or json.dumps(item)
+                )
+                parts.append(str(part))
+            else:
+                parts.append(str(item))
+        return " | ".join(p for p in parts if p)
+    if isinstance(val, dict):
+        return " | ".join(f"{k}: {_stringify(v)}" for k, v in val.items())
+    return str(val)
+
+
 def _parse_decision(
     response_text: str,
     qc_result: QCResult,
@@ -157,21 +182,22 @@ def _parse_decision(
 
     try:
         data = json.loads(json_str) if isinstance(json_str, str) else {}
-        decision = RedeliveryDecision(data.get("decision", "redeliver").lower())
-        rationale = data.get("decision_rationale") or data.get("decision_reason") or response_text[:500]
+        decision = RedeliveryDecision(str(data.get("decision", "redeliver")).lower())
+        raw_rationale = data.get("decision_rationale") or data.get("decision_reason") or response_text[:500]
+        rationale = _stringify(raw_rationale)
         details = data.get("details", [])
         detail0 = details[0] if isinstance(details, list) and details and isinstance(details[0], dict) else {}
-        spec_section = (
+        spec_section = _stringify(
             data.get("spec_section")
             or detail0.get("spec_section")
             or (classification.failures[0].spec_section if classification.failures else "")
         )
-        spec_req = (
+        spec_req = _stringify(
             data.get("spec_requirement")
             or detail0.get("spec_requirement")
             or (classification.failures[0].spec_requirement if classification.failures else "")
         )
-        remediation = (
+        remediation = _stringify(
             data.get("remediation_instructions")
             or detail0.get("remediation_instructions")
             or " | ".join(f.remediation_hint for f in classification.failures if f.remediation_hint)
