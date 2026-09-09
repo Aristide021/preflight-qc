@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
-  <rect width="1920" height="1080" fill="#f5f9fc"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="7680" height="1080" viewBox="0 0 7680 1080">
+  <rect width="7680" height="1080" fill="#ffffff"/>
   <rect x="0" y="0" width="1920" height="18" fill="#11b9b1"/>
   <style>
     .title{font-family:Arial,sans-serif;font-size:68px;font-weight:700;fill:#0b2d52}

@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><style>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><rect width="1920" height="1080" fill="#ffffff"/><style>
     .title{font-family:Arial,sans-serif;font-size:68px;font-weight:700;fill:#0b2d52}
     .subtitle{font-family:Arial,sans-serif;font-size:34px;fill:#52708d}
     .heading{font-family:Arial,sans-serif;font-size:46px;font-weight:700;fill:#0b2d52}
