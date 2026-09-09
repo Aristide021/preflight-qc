@@ -381,4 +381,5 @@ if __name__ == "__main__":
     prereqs, reason = check_live_prerequisites()
     status_str = "LIVE READY" if prereqs else f"LIVE UNAVAILABLE ({reason})"
     print(f"PreFlight QC UI: http://localhost:{PORT} [{status_str}]")
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    # Cloud Run routes traffic to the container network interface.
+    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
