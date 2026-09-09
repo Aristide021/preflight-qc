@@ -275,14 +275,39 @@ async def get_redelivery_cost_estimate(
         GROUP BY error_code
     """
     log.info("tool.cost_estimate", vendor_id=vendor_id, codes=error_codes)
-    rows = await readonly_client().query(sql)
+    client = readonly_client()
+    rows = await client.query(sql)
+    estimate_basis = "vendor_error_history"
+
+    # A new/demo vendor may have no exact-code history even though ClickHouse
+    # contains useful observations for the same failure codes. In that case,
+    # use the corpus-wide code history rather than presenting $0 as a cost.
+    if not rows:
+        fallback_sql = f"""
+            SELECT
+                error_code,
+                round(ifNotFinite(avg(remediation_cost_usd), 0), 2) AS avg_cost_usd,
+                round(ifNotFinite(quantile(0.95)(remediation_cost_usd), 0), 2) AS p95_cost_usd,
+                count() AS sample_size
+            FROM {TABLE}
+            WHERE
+                error_code IN ({codes_list})
+                AND result = 'fail'
+                AND remediation_cost_usd > 0
+            GROUP BY error_code
+        """
+        rows = await client.query(fallback_sql)
+        estimate_basis = "cross_vendor_error_history" if rows else "unavailable"
 
     total = sum(float(r.get("avg_cost_usd") or 0) for r in rows)
+    sample_size = sum(int(r.get("sample_size") or 0) for r in rows)
     return {
         "vendor_id": vendor_id,
         "error_codes": error_codes,
         "by_code": rows,
         "estimated_total_cost_usd": round(total, 2),
+        "estimate_basis": estimate_basis,
+        "sample_size": sample_size,
     }
 
 

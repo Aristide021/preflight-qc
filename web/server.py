@@ -16,6 +16,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import clickhouse_connect
+
 # Ensure project root is on sys.path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -219,10 +221,55 @@ def demo_analysis(qc: dict, reason: str = "ClickHouse MCP not connected") -> dic
     }
 
 
+def _prior_attempt_count(qc_result: QCResult) -> int:
+    """Read the small audit counter over ClickHouse HTTPS without MCP startup latency."""
+    client = clickhouse_connect.get_client(
+        host=os.environ["CLICKHOUSE_HOST"],
+        port=int(os.environ.get("CLICKHOUSE_PORT", "8443")),
+        username=os.environ.get("CLICKHOUSE_READONLY_USER") or os.environ["CLICKHOUSE_USER"],
+        password=os.environ.get("CLICKHOUSE_READONLY_PASSWORD") or os.environ["CLICKHOUSE_PASSWORD"],
+        database=os.environ.get("CLICKHOUSE_DATABASE", "preflight"),
+        secure=os.environ.get("CLICKHOUSE_SECURE", "true").lower() == "true",
+        connect_timeout=15,
+        send_receive_timeout=15,
+    )
+    try:
+        result = client.query(
+            """
+            SELECT count() AS prior_attempts
+            FROM redelivery_tracking
+            WHERE title_id = {title_id:String}
+              AND vendor_id = {vendor_id:String}
+              AND platform_spec = {platform_spec:String}
+            """,
+            parameters={
+                "title_id": qc_result.title_id,
+                "vendor_id": qc_result.vendor_id,
+                "platform_spec": qc_result.platform_spec,
+            },
+        )
+        rows = list(result.named_results())
+        return int(rows[0].get("prior_attempts") or 0) if rows else 0
+    finally:
+        client.close()
+
+
+async def _execute_live_pipeline(qc_result: QCResult) -> tuple[dict, dict]:
+    """Run the pipeline after deriving the attempt number from its audit trail."""
+    prior_attempts = await asyncio.to_thread(_prior_attempt_count, qc_result)
+    effective_attempt = min(255, max(qc_result.redelivery_attempt, prior_attempts))
+    qc_result = qc_result.model_copy(update={"redelivery_attempt": effective_attempt})
+    result = await run_full_pipeline(qc_result)
+    return result, {
+        "prior_tracked_attempts": prior_attempts,
+        "current_attempt_number": effective_attempt + 1,
+    }
+
+
 def execute_live(qc_data: dict) -> dict:
     """Execute live multi-agent pipeline."""
     qc_result = QCResult.model_validate(qc_data)
-    result = asyncio.run(run_full_pipeline(qc_result))
+    result, live_history = asyncio.run(_execute_live_pipeline(qc_result))
 
     # Format classification failures with human-friendly UX labels
     failures = []
@@ -262,6 +309,7 @@ def execute_live(qc_data: dict) -> dict:
         "assessment": result["assessment"].model_dump(mode="json"),
         "decision": result["decision"].model_dump(mode="json"),
         "tracking_record": tracking,
+        "live_history": live_history,
     }
 
 

@@ -234,6 +234,16 @@ is computed separately from the same data.
             raw = raw["result"]
         return raw if isinstance(raw, dict) else {}
 
+    # Cost is a required product output. Do not depend on the model choosing an
+    # optional tool call: query it deterministically through the same MCP path.
+    if not tool_results.get("get_redelivery_cost_estimate"):
+        tool_results["get_redelivery_cost_estimate"] = {
+            "result": await get_redelivery_cost_estimate(
+                qc_result.vendor_id,
+                error_codes,
+            )
+        }
+
     risk_payload = _unwrap("get_risk_score_inputs")
     risk_inputs = risk_payload.get("risk_inputs", {}) or {}
     vendor_payload = _unwrap("get_vendor_failure_rate")
@@ -289,6 +299,8 @@ is computed separately from the same data.
         estimated_remediation_cost_usd=float(
             cost_payload.get("estimated_total_cost_usd") or 0.0
         ),
+        cost_estimate_basis=str(cost_payload.get("estimate_basis") or "unavailable"),
+        cost_estimate_sample_size=int(cost_payload.get("sample_size") or 0),
         insights=insights,
         agent_reasoning=f"Risk basis: {risk_basis}.\n\n{narrative.strip()}",
     )

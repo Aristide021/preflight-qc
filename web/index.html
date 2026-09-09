@@ -125,6 +125,13 @@
 
     function render(data) {
       const qc = data.qc_result, c = data.classification, a = data.assessment, d = data.decision, tr = data.tracking_record;
+      const liveHistory = data.live_history || {};
+      const hasCostEstimate = Number(a.estimated_remediation_cost_usd) > 0;
+      const costBasis = a.cost_estimate_basis === 'vendor_error_history'
+        ? `Vendor history · ${Number(a.cost_estimate_sample_size || 0).toLocaleString()} samples`
+        : a.cost_estimate_basis === 'cross_vendor_error_history'
+          ? `Comparable failures · ${Number(a.cost_estimate_sample_size || 0).toLocaleString()} samples`
+          : 'No matching cost evidence in ClickHouse';
       const isLive = data.mode === 'live';
       $('statusDot').style.background = isLive ? 'var(--teal)' : 'var(--amber)';
       $('statusText').textContent = data.source_label;
@@ -147,7 +154,7 @@
           <div class="card"><div class="eyebrow">Package status</div><div class="value" style="color:${c.blocking_count ? 'var(--red)' : 'var(--teal)'}">${c.blocking_count ? 'Blocked' : 'Ready'}</div><div class="small">${packageAction}</div><div class="small" style="margin-top:7px"><strong>${qc.title_name || qc.title_id || 'Untitled delivery'}</strong> &middot; ${qc.vendor_id || 'Unknown vendor'}</div></div>
           <div class="card"><div class="eyebrow">Blocking</div><div class="value" style="color:${c.blocking_count ? 'var(--red)' : 'var(--teal)'}">${c.blocking_count}</div><div class="small">${c.blocking_count ? 'Redelivery required' : 'No blockers'}</div></div>
           <div class="card"><div class="eyebrow">Risk score</div><div class="risk-ring"><div class="ring" style="background:conic-gradient(${a.risk_score > 0.5 ? 'var(--red)' : 'var(--teal)'} 0 ${Math.round(a.risk_score*100)}%, #edf1f6 ${Math.round(a.risk_score*100)}%)"><span>${Math.round(a.risk_score*100)}%</span></div><div><div class="value" style="font-size:18px">${a.risk_label}</div><div class="small">Historical context</div></div></div></div>
-          <div class="card"><div class="eyebrow">Estimated cost</div><div class="value">$${Number(a.estimated_remediation_cost_usd || 0).toLocaleString()}</div><div class="small">Based on delivery history</div></div>
+          <div class="card"><div class="eyebrow">Estimated cost</div><div class="value">${hasCostEstimate ? `$${Number(a.estimated_remediation_cost_usd).toLocaleString()}` : 'Unavailable'}</div><div class="small">${costBasis}</div></div>
         </section>
         <section class="workspace">
           <div>
@@ -156,7 +163,7 @@
               const targetBadge = ctx.target_file ? `<div class="code" style="margin-top:6px; background:#f2f6fb; padding:5px 9px; border-radius:6px; font-size:11px;"><strong>Affected file:</strong> ${ctx.target_file} ${ctx.affected_asset_id ? `&middot; <code>${ctx.affected_asset_id}</code>` : ''}</div>` : '';
               return `<div class="finding ${f.severity}"><div class="finding-head"><div><div class="eyebrow">${f.user_label || 'Package check'} · Finding #${i+1}</div><strong>${f.user_summary || f.error_message}</strong></div><span class="tag ${f.severity}">${f.severity}</span></div>${targetBadge}<p class="small" style="margin-top:8px;"><strong>Why it matters:</strong> ${f.impact || 'This may affect acceptance at ingest.'}</p><div class="quote">${f.spec_requirement}</div><p class="small"><strong>Recommended fix:</strong> ${f.remediation_hint}</p><details style="margin-top:6px;"><summary class="small" style="cursor:pointer; color:var(--muted);">Technical error details</summary><p class="small" style="margin:4px 0;"><span class="code">${f.error_code}</span><br>${f.error_message}</p></details></div>`;
             }).join('') || '<div class="empty">No failures reported.</div>'}</section>
-            <section class="panel" id="history"><div class="section-title"><h3>What history says</h3><span class="small">Vendor + package context</span></div><div class="metric-row"><span>Vendor failure rate</span><strong>${(a.vendor_historical_fail_rate*100).toFixed(1)}%</strong></div><div class="metric-row"><span>Historical submissions</span><strong>${Number(a.vendor_total_submissions).toLocaleString()}</strong></div><div class="metric-row"><span>Average redelivery attempts</span><strong>${a.avg_redelivery_attempts}</strong></div><div class="metric-row"><span>Likely repeat codes</span><strong>${(a.predicted_failure_codes || []).join(', ') || 'None identified'}</strong></div><div class="source" style="background:#fff7e6; border:1px solid #ffd591; color:#ad6800; font-weight:600;">${a.analytics_label || data.source_label}</div></section>
+            <section class="panel" id="history"><div class="section-title"><h3>What history says</h3><span class="small">Vendor + package context</span></div><div class="metric-row"><span>Prior live attempts for this title</span><strong>${Number(liveHistory.prior_tracked_attempts || 0).toLocaleString()}</strong></div><div class="metric-row"><span>This analysis attempt</span><strong>#${Number(liveHistory.current_attempt_number || 1).toLocaleString()}</strong></div><div class="metric-row"><span>Vendor failure rate</span><strong>${(a.vendor_historical_fail_rate*100).toFixed(1)}%</strong></div><div class="metric-row"><span>Historical corpus submissions</span><strong>${Number(a.vendor_total_submissions).toLocaleString()}</strong></div><div class="metric-row"><span>Average redelivery attempts</span><strong>${a.avg_redelivery_attempts}</strong></div><div class="metric-row"><span>Likely repeat codes</span><strong>${(a.predicted_failure_codes || []).join(', ') || 'None identified'}</strong></div><div class="source" style="background:#fff7e6; border:1px solid #ffd591; color:#ad6800; font-weight:600;">${a.analytics_label || data.source_label}</div></section>
           </div>
           <div>
             <section class="panel decision" id="decision"><div class="eyebrow">Recommended next step</div><div class="decision-word">${d.decision === 'redeliver' ? 'CORRECT & RERUN QC' : d.decision.toUpperCase()}</div><p>${d.decision_rationale}</p><div class="quote">${d.spec_requirement}</div><div class="remedy"><strong>What to send the vendor</strong><br>${d.remediation_instructions}</div></section>

@@ -155,6 +155,8 @@ class RiskAssessment(BaseModel):
     predicted_failure_codes: list[str] = Field(default_factory=list)
     avg_redelivery_attempts: float     = Field(default=0.0)
     estimated_remediation_cost_usd: float = Field(default=0.0)
+    cost_estimate_basis: str           = Field(default="unavailable")
+    cost_estimate_sample_size: int     = Field(default=0, ge=0)
 
     # The ClickHouse insights that drove the score
     insights: list[HistoricalInsight] = Field(default_factory=list)
