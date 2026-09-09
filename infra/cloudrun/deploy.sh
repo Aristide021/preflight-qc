@@ -35,7 +35,7 @@ gcloud run deploy "${SERVICE_NAME}" \
   --project "${PROJECT_ID}" \
   --allow-unauthenticated \
   --service-account "preflight-qc-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --set-env-vars "APP_ENV=production,PORT=8080,GEMINI_MODEL=gemini-2.5-flash,GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},CLICKHOUSE_SECURE=true,CLICKHOUSE_DATABASE=preflight" \
+  --set-env-vars "APP_ENV=production,GEMINI_MODEL=gemini-2.5-flash,GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},CLICKHOUSE_SECURE=true,CLICKHOUSE_DATABASE=preflight" \
   --set-secrets "CLICKHOUSE_HOST=clickhouse-host:latest,CLICKHOUSE_USER=clickhouse-user:latest,CLICKHOUSE_PASSWORD=clickhouse-password:latest" \
   --cpu 2 \
   --memory 2Gi \
