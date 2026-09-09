@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 # Copy dependency definition
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock* LICENSE ./
 
 # Install Python runtime dependencies into /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
